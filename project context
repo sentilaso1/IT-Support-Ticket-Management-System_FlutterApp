@@ -1,0 +1,16 @@
+Hệ thống quản lý các yêu cầu hỗ trợ kỹ thuật trong một tổ chức. Người dùng gửi ticket khi gặp sự
+cố. Nhân viên kỹ thuật tiếp nhận, phân loại, xử lý và cập nhật trạng thái ticket. Quản trị viên theo
+dõi hiệu suất xử lý.
+Một số chức năng gợi ý:
+• Người dùng tạo ticket hỗ trợ
+• Ticket có loại sự cố, mức ưu tiên và trạng thái xử lý
+• Nhân viên kỹ thuật nhận xử lý ticket
+• Nhân viên cập nhật tiến độ xử lý
+• Người dùng đánh giá sau khi ticket hoàn tất
+• Quản trị viên xem báo cáo số lượng ticket theo loại, theo nhân viên, theo thời gian xử lý
+Một số business rules gợi ý:
+• Ticket mới tạo có trạng thái Submitted hoặc Open
+• Ticket chỉ được đóng khi đã có nội dung xử lý
+• Người dùng chỉ được đánh giá ticket của chính mình
+• Ticket mức ưu tiên cao cần được xử lý trước
+• Ticket đã Closed chỉ được mở lại theo điều kiện nhất định
