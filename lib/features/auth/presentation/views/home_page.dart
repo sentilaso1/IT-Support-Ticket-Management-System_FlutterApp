@@ -116,14 +116,14 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    FilledButton.icon(
-                      onPressed: user == null
-                          ? null
-                          : () => _openAssignedTickets(context),
-                      icon: const Icon(Icons.assignment_ind),
-                      label: const Text('Assigned tickets'),
-                    ),
-                    const SizedBox(height: 12),
+                    if (user?.role == 'staff') ...[
+                      FilledButton.icon(
+                        onPressed: () => _openAssignedTickets(context),
+                        icon: const Icon(Icons.assignment_ind),
+                        label: const Text('Assigned tickets'),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     OutlinedButton.icon(
                       onPressed: () => _logout(context),
                       icon: const Icon(Icons.logout),
