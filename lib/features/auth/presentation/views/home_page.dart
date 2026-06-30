@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'login_page.dart';
 import '../viewmodels/login_view_model.dart';
+import '../../../user_management/presentation/views/user_list_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({
@@ -78,6 +79,21 @@ class HomePage extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
+                    if (user?.role == 'admin') ...[
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const UserListPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.manage_accounts_outlined),
+                        label: const Text('Manage users'),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     FilledButton.icon(
                       onPressed: () => _logout(context),
                       icon: const Icon(Icons.logout),

@@ -7,7 +7,7 @@ class AppDatabase {
   AppDatabase._();
 
   static const String databaseName = 'it_support.db';
-  static const int databaseVersion = 3;
+  static const int databaseVersion = 4;
 
   static const String usersTable = 'users';
   static const String departmentsTable = 'departments';
@@ -461,6 +461,22 @@ class AppDatabase {
           'email': 'admin@example.com',
           'passwordHash': PasswordHasher.hash('Admin@123'),
           'role': 'admin',
+          'isActive': 1,
+          'mustChangePassword': 1,
+          'createdAt': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+
+      await transaction.insert(
+        usersTable,
+        {
+          'fullName': 'Support Staff',
+          'username': 'staff',
+          'email': 'staff@example.com',
+          'passwordHash': PasswordHasher.hash('Staff@123'),
+          'role': 'staff',
+          'departmentId': 1,
           'isActive': 1,
           'mustChangePassword': 1,
           'createdAt': now,
