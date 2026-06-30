@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/di/service_locator.dart';
+import '../../../assignment/presentation/viewmodels/technician_queue_view_model.dart';
+import '../../../assignment/presentation/views/technician_queue_page.dart';
 import 'login_page.dart';
 import '../viewmodels/login_view_model.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({
-    super.key,
-    required this.viewModel,
-  });
+  const HomePage({super.key, required this.viewModel});
 
   final LoginViewModel viewModel;
 
@@ -20,10 +20,32 @@ class HomePage extends StatelessWidget {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => LoginPage(viewModel: viewModel),
-      ),
+      MaterialPageRoute(builder: (_) => LoginPage(viewModel: viewModel)),
       (route) => false,
+    );
+  }
+
+  Future<void> _openAssignedTickets(BuildContext context) async {
+    final user = viewModel.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final service = await ServiceLocator.assignmentService;
+    if (!context.mounted) {
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TechnicianQueuePage(
+          viewModel: TechnicianQueueViewModel(
+            assignmentService: service,
+            staffId: user.id,
+          ),
+        ),
+      ),
     );
   }
 
@@ -79,6 +101,14 @@ class HomePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
+                      onPressed: user == null
+                          ? null
+                          : () => _openAssignedTickets(context),
+                      icon: const Icon(Icons.assignment_ind),
+                      label: const Text('Assigned tickets'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
                       onPressed: () => _logout(context),
                       icon: const Icon(Icons.logout),
                       label: const Text('Sign out'),
