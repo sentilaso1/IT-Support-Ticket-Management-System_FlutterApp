@@ -7,7 +7,7 @@ class AppDatabase {
   AppDatabase._();
 
   static const String databaseName = 'it_support.db';
-  static const int databaseVersion = 4;
+  static const int databaseVersion = 5;
 
   static const String usersTable = 'users';
   static const String departmentsTable = 'departments';
@@ -66,6 +66,9 @@ class AppDatabase {
     if (oldVersion < 3) {
       await _migrateUsersV2ToV3(database);
     }
+    if (oldVersion < 5) {
+      await _migrateUsersV4ToV5(database);
+    }
     await _createIndexes(database);
     await seedReferenceData(databaseOverride: database);
   }
@@ -98,6 +101,8 @@ class AppDatabase {
         isActive INTEGER NOT NULL DEFAULT 1,
         mustChangePassword INTEGER NOT NULL DEFAULT 1,
         lastLoginAt TEXT,
+        failedLoginAttempts INTEGER NOT NULL DEFAULT 0,
+        lockedUntil TEXT,
         createdAt TEXT NOT NULL,
         updatedAt TEXT,
         FOREIGN KEY (departmentId) REFERENCES $departmentsTable(id)
@@ -332,6 +337,24 @@ class AppDatabase {
     }
   }
 
+  static Future<void> _migrateUsersV4ToV5(Database database) async {
+    final existingColumns = await _getColumnNames(database, usersTable);
+    final columnsToAdd = <String, String>{
+      'failedLoginAttempts': 'INTEGER NOT NULL DEFAULT 0',
+      'lockedUntil': 'TEXT',
+    };
+
+    for (final entry in columnsToAdd.entries) {
+      if (existingColumns.contains(entry.key)) {
+        continue;
+      }
+
+      await database.execute(
+        'ALTER TABLE $usersTable ADD COLUMN ${entry.key} ${entry.value}',
+      );
+    }
+  }
+
   static Future<Set<String>> _getColumnNames(
     Database database,
     String tableName,
@@ -463,6 +486,8 @@ class AppDatabase {
           'role': 'admin',
           'isActive': 1,
           'mustChangePassword': 1,
+          'failedLoginAttempts': 0,
+          'lockedUntil': null,
           'createdAt': now,
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,
@@ -479,6 +504,8 @@ class AppDatabase {
           'departmentId': 1,
           'isActive': 1,
           'mustChangePassword': 1,
+          'failedLoginAttempts': 0,
+          'lockedUntil': null,
           'createdAt': now,
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,
