@@ -28,6 +28,8 @@ class CreateUserRequestDto {
       'phoneNumber': phoneNumber,
       'isActive': 1,
       'mustChangePassword': 1,
+      'failedLoginAttempts': 0,
+      'lockedUntil': null,
       'createdAt': now.toIso8601String(),
     };
   }

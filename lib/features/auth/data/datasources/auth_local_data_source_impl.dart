@@ -11,6 +11,9 @@ import 'i_auth_local_data_source.dart';
 class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
   AuthLocalDataSourceImpl(this._database);
 
+  static const int _maxFailedLoginAttempts = 5;
+  static const Duration _lockDuration = Duration(minutes: 15);
+
   final Database _database;
 
   int? _currentUserId;
@@ -34,18 +37,43 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
       throw const AuthException('This account is disabled.');
     }
 
+    final now = DateTime.now();
+    final lockedUntil = user.lockedUntil;
+    if (lockedUntil != null && lockedUntil.isAfter(now)) {
+      throw const AuthException(
+        'This account is temporarily locked. Please try again later or contact an administrator.',
+      );
+    }
+
+    final failedLoginAttempts = lockedUntil == null
+        ? user.failedLoginAttempts
+        : 0;
     final passwordHash = user.passwordHash;
     if (passwordHash == null ||
         !PasswordHasher.verify(
           password: request.password,
           passwordHash: passwordHash,
         )) {
+      final isLocked = await _recordFailedLogin(
+        userId: user.id,
+        failedLoginAttempts: failedLoginAttempts,
+        now: now,
+      );
+      if (isLocked) {
+        throw const AuthException(
+          'Too many failed login attempts. Please try again after 15 minutes or contact an administrator.',
+        );
+      }
       throw const AuthException('Username or password is incorrect.');
     }
 
     await _database.update(
       AppDatabase.usersTable,
-      {'lastLoginAt': DateTime.now().toIso8601String()},
+      {
+        'lastLoginAt': now.toIso8601String(),
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
+      },
       where: 'id = ?',
       whereArgs: [user.id],
     );
@@ -85,6 +113,30 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
     _currentUserId = user.id;
   }
 
+  Future<bool> _recordFailedLogin({
+    required int userId,
+    required int failedLoginAttempts,
+    required DateTime now,
+  }) async {
+    final failedAttempts = failedLoginAttempts + 1;
+    final lockedUntil = failedAttempts >= _maxFailedLoginAttempts
+        ? now.add(_lockDuration).toIso8601String()
+        : null;
+
+    await _database.update(
+      AppDatabase.usersTable,
+      {
+        'failedLoginAttempts': failedAttempts,
+        'lockedUntil': lockedUntil,
+        'updatedAt': now.toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+
+    return lockedUntil != null;
+  }
+
   @override
   Future<void> changePassword({
     required int userId,
@@ -95,6 +147,8 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
       {
         'passwordHash': newPasswordHash,
         'mustChangePassword': 0,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
         'updatedAt': DateTime.now().toIso8601String(),
       },
       where: 'id = ?',

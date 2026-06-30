@@ -12,6 +12,8 @@ class UserDto {
     required this.isActive,
     required this.mustChangePassword,
     this.lastLoginAt,
+    required this.failedLoginAttempts,
+    this.lockedUntil,
     required this.createdAt,
     this.updatedAt,
   });
@@ -28,6 +30,8 @@ class UserDto {
   final bool isActive;
   final bool mustChangePassword;
   final DateTime? lastLoginAt;
+  final int failedLoginAttempts;
+  final DateTime? lockedUntil;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -47,6 +51,10 @@ class UserDto {
       lastLoginAt: map['lastLoginAt'] == null
           ? null
           : DateTime.parse(map['lastLoginAt'] as String),
+      failedLoginAttempts: (map['failedLoginAttempts'] as int?) ?? 0,
+      lockedUntil: map['lockedUntil'] == null
+          ? null
+          : DateTime.parse(map['lockedUntil'] as String),
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: map['updatedAt'] == null
           ? null
@@ -68,6 +76,8 @@ class UserDto {
       'isActive': isActive ? 1 : 0,
       'mustChangePassword': mustChangePassword ? 1 : 0,
       'lastLoginAt': lastLoginAt?.toIso8601String(),
+      'failedLoginAttempts': failedLoginAttempts,
+      'lockedUntil': lockedUntil?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };

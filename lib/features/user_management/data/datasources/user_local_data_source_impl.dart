@@ -82,6 +82,8 @@ class UserLocalDataSourceImpl implements IUserLocalDataSource {
       {
         'passwordHash': temporaryPasswordHash,
         'mustChangePassword': 1,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
         'updatedAt': DateTime.now().toIso8601String(),
       },
       where: 'id = ?',
