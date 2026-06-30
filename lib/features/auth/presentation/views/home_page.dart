@@ -5,6 +5,7 @@ import '../../../assignment/presentation/viewmodels/technician_queue_view_model.
 import '../../../assignment/presentation/views/technician_queue_page.dart';
 import 'login_page.dart';
 import '../viewmodels/login_view_model.dart';
+import '../../../user_management/presentation/views/user_list_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key, required this.viewModel});
@@ -100,6 +101,21 @@ class HomePage extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
+                    if (user?.role == 'admin') ...[
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const UserListPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.manage_accounts_outlined),
+                        label: const Text('Manage users'),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     FilledButton.icon(
                       onPressed: user == null
                           ? null
