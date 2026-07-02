@@ -15,7 +15,6 @@ abstract interface class IAssignmentService {
     required int ticketId,
     required int staffId,
     required String message,
-    int? progressPercent,
   });
 
   Future<void> updateTicketStatus({
@@ -23,5 +22,6 @@ abstract interface class IAssignmentService {
     required int staffId,
     required String status,
     String? note,
+    String? solutionSummary,
   });
 }

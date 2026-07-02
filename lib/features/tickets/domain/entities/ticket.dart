@@ -3,7 +3,7 @@ class Ticket {
     this.id,
     required this.title,
     required this.description,
-    this.status = 'Open',
+    this.status = 'Submitted',
     this.priority = 'Medium',
     this.issueType = 'General',
     this.attachmentUrl,

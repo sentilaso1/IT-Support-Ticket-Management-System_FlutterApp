@@ -13,15 +13,17 @@ class UpdateProgressPage extends StatefulWidget {
 
 class _UpdateProgressPageState extends State<UpdateProgressPage> {
   final TextEditingController _messageController = TextEditingController();
-  double _progress = 25;
-  String _status = 'In Progress';
+  final TextEditingController _solutionSummaryController =
+      TextEditingController();
+  String? _status;
 
-  static const List<String> _statuses = [
-    'Open',
-    'In Progress',
-    'Resolved',
-    'Closed',
-  ];
+  static const Map<String, List<String>> _staffTransitions = {
+    'Submitted': ['Assigned'],
+    'Assigned': ['Processing', 'Resolved'],
+    'Processing': ['Pending', 'Resolved'],
+    'Pending': ['Processing'],
+    'Resolved': ['Closed'],
+  };
 
   @override
   void initState() {
@@ -34,20 +36,29 @@ class _UpdateProgressPageState extends State<UpdateProgressPage> {
   void dispose() {
     widget.viewModel.removeListener(_onViewModelChanged);
     _messageController.dispose();
+    _solutionSummaryController.dispose();
     super.dispose();
   }
 
   void _onViewModelChanged() {
     if (mounted) {
-      setState(() {});
+      setState(_syncSelectedStatus);
     }
   }
 
   Future<void> _submit() async {
+    final selectedStatus = _status;
+    if (selectedStatus == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No valid next status is available.')),
+      );
+      return;
+    }
+
     final success = await widget.viewModel.submitUpdate(
       message: _messageController.text,
-      progressPercent: _progress.round(),
-      status: _status,
+      status: selectedStatus,
+      solutionSummary: _solutionSummaryController.text,
     );
 
     if (!mounted) {
@@ -55,20 +66,51 @@ class _UpdateProgressPageState extends State<UpdateProgressPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(success ? 'Progress updated.' : 'Update failed.')),
+      SnackBar(
+        content: Text(success ? 'Ticket status updated.' : 'Update failed.'),
+      ),
     );
 
     if (success) {
       _messageController.clear();
+      _solutionSummaryController.clear();
     }
+  }
+
+  void _syncSelectedStatus() {
+    final assignment = widget.viewModel.assignment;
+    if (assignment == null) {
+      return;
+    }
+
+    final allowedStatuses = _allowedNextStatuses(assignment.status);
+    if (allowedStatuses.isEmpty) {
+      _status = null;
+      return;
+    }
+
+    if (_status == null || !allowedStatuses.contains(_status)) {
+      _status = allowedStatuses.first;
+    }
+  }
+
+  List<String> _allowedNextStatuses(String currentStatus) {
+    return _staffTransitions[currentStatus.trim()] ?? const [];
   }
 
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
     final assignment = viewModel.assignment;
+    final allowedStatuses = assignment == null
+        ? const <String>[]
+        : _allowedNextStatuses(assignment.status);
+    final selectedStatus = _status;
+    final canSubmit =
+        !viewModel.isLoading && assignment != null && selectedStatus != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Update progress')),
+      appBar: AppBar(title: const Text('Update ticket status')),
       body: viewModel.isLoading && assignment == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -103,49 +145,55 @@ class _UpdateProgressPageState extends State<UpdateProgressPage> {
                   ),
                   const SizedBox(height: 24),
                 ],
-                DropdownButtonFormField<String>(
-                  value: _status,
-                  decoration: const InputDecoration(
-                    labelText: 'New status',
-                    border: OutlineInputBorder(),
+                if (allowedStatuses.isEmpty)
+                  const Text('No status changes are available for this ticket.')
+                else
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      '${assignment?.ticketId}-${allowedStatuses.join('|')}-$selectedStatus',
+                    ),
+                    initialValue: selectedStatus,
+                    decoration: const InputDecoration(
+                      labelText: 'Next status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: allowedStatuses
+                        .map(
+                          (status) => DropdownMenuItem(
+                            value: status,
+                            child: Text(status),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: viewModel.isLoading
+                        ? null
+                        : (value) => setState(() => _status = value),
                   ),
-                  items: _statuses
-                      .map(
-                        (status) => DropdownMenuItem(
-                          value: status,
-                          child: Text(status),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: viewModel.isLoading
-                      ? null
-                      : (value) => setState(() => _status = value ?? _status),
-                ),
-                const SizedBox(height: 16),
-                Text('Progress: ${_progress.round()}%'),
-                Slider(
-                  value: _progress,
-                  min: 0,
-                  max: 100,
-                  divisions: 20,
-                  label: '${_progress.round()}%',
-                  onChanged: viewModel.isLoading
-                      ? null
-                      : (value) => setState(() => _progress = value),
-                ),
+                if (selectedStatus == 'Resolved') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _solutionSummaryController,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Solution summary',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 TextField(
                   controller: _messageController,
                   minLines: 4,
                   maxLines: 6,
                   decoration: const InputDecoration(
-                    labelText: 'Progress note',
+                    labelText: 'Status note',
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: viewModel.isLoading ? null : _submit,
+                  onPressed: canSubmit ? _submit : null,
                   icon: viewModel.isLoading
                       ? const SizedBox.square(
                           dimension: 18,
@@ -156,21 +204,19 @@ class _UpdateProgressPageState extends State<UpdateProgressPage> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Progress history',
+                  'Status note history',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
                 if (viewModel.updates.isEmpty)
-                  const Text('No progress notes yet.')
+                  const Text('No status notes yet.')
                 else
                   ...viewModel.updates.map(
                     (update) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.notes),
                       title: Text(update.message),
-                      subtitle: Text(
-                        '${update.progressPercent ?? 0}% - ${update.createdAt}',
-                      ),
+                      subtitle: Text(update.createdAt.toString()),
                     ),
                   ),
               ],

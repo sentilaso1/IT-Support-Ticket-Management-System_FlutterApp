@@ -126,11 +126,11 @@ class TicketLocalDataSourceImpl implements ITicketLocalDataSource {
         {
           'status': statusUpdate.newStatus,
           'updatedAt': now,
-          if (statusUpdate.newStatus.toLowerCase() == 'closed') 'closedAt': now,
-          if (statusUpdate.newStatus.toLowerCase() != 'closed')
-            'closedAt': null,
-          if (statusUpdate.newStatus.toLowerCase() == 'reopened')
-            'reopenedAt': now,
+          if (statusUpdate.newStatus == 'Resolved') 'resolvedAt': now,
+          if (statusUpdate.newStatus == 'Resolved')
+            'solutionSummary': statusUpdate.solutionSummary,
+          if (statusUpdate.newStatus == 'Closed') 'closedAt': now,
+          if (statusUpdate.newStatus != 'Closed') 'closedAt': null,
         },
         where: 'id = ?',
         whereArgs: [statusUpdate.ticketId],

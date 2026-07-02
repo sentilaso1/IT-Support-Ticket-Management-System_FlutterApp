@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/enums/user_role.dart';
 import '../../../assignment/presentation/viewmodels/technician_queue_view_model.dart';
 import '../../../assignment/presentation/views/technician_queue_page.dart';
 import '../../../tickets/presentation/views/ticket_list_page.dart';
@@ -33,6 +34,13 @@ class HomePage extends StatelessWidget {
       return;
     }
 
+    if (!_hasRole(user.role, UserRole.staff)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only staff can view assigned tickets.')),
+      );
+      return;
+    }
+
     final service = await ServiceLocator.assignmentService;
     if (!context.mounted) {
       return;
@@ -45,6 +53,7 @@ class HomePage extends StatelessWidget {
           viewModel: TechnicianQueueViewModel(
             assignmentService: service,
             staffId: user.id,
+            userRole: user.role,
           ),
         ),
       ),
@@ -59,9 +68,7 @@ class HomePage extends StatelessWidget {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => TicketListPage(requesterId: user.id),
-      ),
+      MaterialPageRoute(builder: (_) => TicketListPage(requesterId: user.id)),
     );
   }
 
@@ -116,7 +123,7 @@ class HomePage extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
-                    if (user?.role == 'admin') ...[
+                    if (_hasRole(user?.role, UserRole.admin)) ...[
                       FilledButton.icon(
                         onPressed: () {
                           Navigator.push(
@@ -131,7 +138,7 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    if (user?.role == 'staff') ...[
+                    if (_hasRole(user?.role, UserRole.staff)) ...[
                       FilledButton.icon(
                         onPressed: () => _openAssignedTickets(context),
                         icon: const Icon(Icons.assignment_ind),
@@ -139,7 +146,7 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    if (user?.role == 'user') ...[
+                    if (_hasRole(user?.role, UserRole.user)) ...[
                       FilledButton.icon(
                         onPressed: () => _openMyTickets(context),
                         icon: const Icon(Icons.confirmation_number_outlined),
@@ -160,5 +167,13 @@ class HomePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  bool _hasRole(String? role, UserRole expectedRole) {
+    if (role == null) {
+      return false;
+    }
+
+    return UserRole.fromValue(role.trim()) == expectedRole;
   }
 }

@@ -17,11 +17,10 @@ class AssignmentMapper {
       ticketDescription: dto.ticketDescription ?? '',
       issueType: dto.issueType ?? 'General',
       priority: dto.priority ?? 'Medium',
-      status: dto.status ?? 'Open',
+      status: dto.status ?? 'Submitted',
       ticketCreatedAt: dto.ticketCreatedAt ?? dto.createdAt,
       ticketUpdatedAt: dto.ticketUpdatedAt,
       lastProgressMessage: dto.lastProgressMessage,
-      lastProgressPercent: dto.lastProgressPercent,
     );
   }
 }

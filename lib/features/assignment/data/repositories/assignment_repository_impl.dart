@@ -52,7 +52,6 @@ class AssignmentRepositoryImpl implements IAssignmentRepository {
     required int ticketId,
     required int staffId,
     required String message,
-    int? progressPercent,
   }) async {
     final now = DateTime.now();
     final id = await _localDataSource.addProgressUpdate(
@@ -60,7 +59,6 @@ class AssignmentRepositoryImpl implements IAssignmentRepository {
         ticketId: ticketId,
         staffId: staffId,
         message: message,
-        progressPercent: progressPercent,
         createdAt: now,
       ),
     );
@@ -70,7 +68,6 @@ class AssignmentRepositoryImpl implements IAssignmentRepository {
       ticketId: ticketId,
       staffId: staffId,
       message: message,
-      progressPercent: progressPercent,
       createdAt: now,
     );
   }
@@ -81,12 +78,14 @@ class AssignmentRepositoryImpl implements IAssignmentRepository {
     required int staffId,
     required String status,
     String? note,
+    String? solutionSummary,
   }) {
     return _localDataSource.updateTicketStatus(
       ticketId: ticketId,
       staffId: staffId,
       status: status,
       note: note,
+      solutionSummary: solutionSummary,
     );
   }
 }

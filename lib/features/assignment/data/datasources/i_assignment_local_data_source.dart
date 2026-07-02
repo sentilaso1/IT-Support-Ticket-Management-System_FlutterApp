@@ -18,5 +18,6 @@ abstract interface class IAssignmentLocalDataSource {
     required int staffId,
     required String status,
     String? note,
+    String? solutionSummary,
   });
 }
