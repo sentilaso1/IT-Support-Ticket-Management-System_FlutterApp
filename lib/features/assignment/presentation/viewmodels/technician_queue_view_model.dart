@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/enums/user_role.dart';
 import '../../application/services/i_assignment_service.dart';
 import '../../domain/entities/assignment.dart';
 
@@ -9,10 +10,12 @@ class TechnicianQueueViewModel extends ChangeNotifier {
   TechnicianQueueViewModel({
     required IAssignmentService assignmentService,
     required this.staffId,
+    required this.userRole,
   }) : _assignmentService = assignmentService;
 
   final IAssignmentService _assignmentService;
   final int staffId;
+  final String userRole;
 
   TechnicianQueueStatus _status = TechnicianQueueStatus.initial;
   String? _errorMessage;
@@ -32,6 +35,10 @@ class TechnicianQueueViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (UserRole.fromValue(userRole.trim()) != UserRole.staff) {
+        throw Exception('Only staff can view assigned ticket queue.');
+      }
+
       _assignments = await _assignmentService.getAssignmentsForStaff(staffId);
       _status = TechnicianQueueStatus.success;
     } catch (error) {
