@@ -581,35 +581,37 @@ const List<String> _knownIssueTypes = [
 const List<String> _knownPriorities = ['Low', 'Medium', 'High', 'Critical'];
 
 const List<String> _knownStatuses = [
-  'Open',
+  'Submitted',
+  'Cancelled',
   'Assigned',
-  'InProgress',
+  'Processing',
+  'Pending',
   'Resolved',
   'Closed',
-  'Reopened',
 ];
 
 String _statusLabel(String status) {
   final key = status.trim().toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
   switch (key) {
-    case 'open':
     case 'submitted':
-      return 'Open';
+    case 'open':
+      return 'Submitted';
+    case 'cancelled':
+      return 'Cancelled';
     case 'assigned':
       return 'Assigned';
-    case 'inprogress':
     case 'processing':
+    case 'inprogress':
+      return 'Processing';
     case 'pending':
-      return 'InProgress';
+      return 'Pending';
     case 'resolved':
       return 'Resolved';
     case 'closed':
       return 'Closed';
-    case 'reopened':
-      return 'Reopened';
   }
 
-  return 'Open';
+  return 'Submitted';
 }
 
 Future<ITicketService> _createTicketService() async {

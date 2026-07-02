@@ -17,27 +17,27 @@ class TicketRepositoryImpl implements ITicketRepository {
   final TicketMapper _mapper;
 
   static const Map<String, Set<String>> _allowedStatusTransitions = {
-    'open': {'assigned', 'inprogress', 'resolved', 'closed'},
-    'assigned': {'inprogress', 'resolved', 'closed'},
-    'inprogress': {'assigned', 'resolved', 'closed'},
+    'submitted': {'assigned', 'cancelled'},
+    'assigned': {'processing', 'resolved'},
+    'processing': {'pending', 'resolved'},
+    'pending': {'processing'},
     'resolved': {'closed'},
-    'closed': {'reopened'},
-    'reopened': {'assigned', 'inprogress', 'resolved', 'closed'},
   };
 
   static const Map<String, String> _statusDisplayNames = {
-    'open': 'Open',
+    'submitted': 'Submitted',
+    'cancelled': 'Cancelled',
     'assigned': 'Assigned',
-    'inprogress': 'InProgress',
+    'processing': 'Processing',
+    'pending': 'Pending',
     'resolved': 'Resolved',
     'closed': 'Closed',
-    'reopened': 'Reopened',
   };
 
   static const Map<String, String> _legacyStatusAliases = {
-    'submitted': 'open',
-    'processing': 'inprogress',
-    'pending': 'inprogress',
+    'open': 'submitted',
+    'inprogress': 'processing',
+    'reopened': 'processing',
   };
 
   @override
@@ -84,7 +84,7 @@ class TicketRepositoryImpl implements ITicketRepository {
       description: description.trim(),
       issueType: issueType.trim().isEmpty ? 'General' : issueType.trim(),
       priority: priority.trim().isEmpty ? 'Medium' : priority.trim(),
-      status: 'Open',
+      status: 'Submitted',
       attachmentUrl: attachmentUrl,
       requestedId: requesterId,
       createdByUserId: requesterId,
@@ -200,6 +200,7 @@ class TicketRepositoryImpl implements ITicketRepository {
         newStatus: normalizedStatus,
         changedByUserId: changedByUserId,
         note: note ?? solutionSummary,
+        solutionSummary: solutionSummary,
       ),
     );
 

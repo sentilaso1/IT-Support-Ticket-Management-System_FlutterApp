@@ -4,7 +4,7 @@ class CreateTicketRequestDto {
     required this.description,
     this.issueType = 'General',
     this.priority = 'Medium',
-    this.status = 'Open',
+    this.status = 'Submitted',
     this.attachmentUrl,
     this.categoryId,
     this.requestedId,

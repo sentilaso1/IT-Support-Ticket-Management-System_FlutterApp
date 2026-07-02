@@ -9,6 +9,14 @@ class AssignmentServiceImpl implements IAssignmentService {
 
   final IAssignmentRepository _assignmentRepository;
 
+  static const Map<String, Set<String>> _staffTransitions = {
+    'Submitted': {'Assigned'},
+    'Assigned': {'Processing', 'Resolved'},
+    'Processing': {'Pending', 'Resolved'},
+    'Pending': {'Processing'},
+    'Resolved': {'Closed'},
+  };
+
   @override
   Future<List<Assignment>> getAssignmentsForStaff(int staffId) {
     if (staffId <= 0) {
@@ -47,23 +55,16 @@ class AssignmentServiceImpl implements IAssignmentService {
     required int ticketId,
     required int staffId,
     required String message,
-    int? progressPercent,
   }) {
     final normalizedMessage = message.trim();
     if (normalizedMessage.isEmpty) {
       throw const AppException('Progress note is required.');
     }
 
-    if (progressPercent != null &&
-        (progressPercent < 0 || progressPercent > 100)) {
-      throw const AppException('Progress must be between 0 and 100.');
-    }
-
     return _assignmentRepository.addProgressUpdate(
       ticketId: ticketId,
       staffId: staffId,
       message: normalizedMessage,
-      progressPercent: progressPercent,
     );
   }
 
@@ -73,10 +74,36 @@ class AssignmentServiceImpl implements IAssignmentService {
     required int staffId,
     required String status,
     String? note,
-  }) {
+    String? solutionSummary,
+  }) async {
     final normalizedStatus = status.trim();
     if (normalizedStatus.isEmpty) {
       throw const AppException('Ticket status is required.');
+    }
+
+    final assignment = await getAssignmentByTicket(
+      ticketId: ticketId,
+      staffId: staffId,
+    );
+    if (assignment == null) {
+      throw const AppException('Assigned ticket was not found.');
+    }
+
+    final currentStatus = assignment.status.trim();
+    final allowedStatuses = _staffTransitions[currentStatus] ?? const {};
+    if (!allowedStatuses.contains(normalizedStatus)) {
+      throw AppException(
+        'Invalid status transition: $currentStatus -> $normalizedStatus.',
+      );
+    }
+
+    final normalizedSolutionSummary = solutionSummary?.trim();
+    if (normalizedStatus == 'Resolved' &&
+        (normalizedSolutionSummary == null ||
+            normalizedSolutionSummary.isEmpty)) {
+      throw const AppException(
+        'Solution summary is required when resolving a ticket.',
+      );
     }
 
     return _assignmentRepository.updateTicketStatus(
@@ -84,6 +111,9 @@ class AssignmentServiceImpl implements IAssignmentService {
       staffId: staffId,
       status: normalizedStatus,
       note: note?.trim().isEmpty ?? true ? null : note!.trim(),
+      solutionSummary: normalizedSolutionSummary?.isEmpty ?? true
+          ? null
+          : normalizedSolutionSummary,
     );
   }
 }

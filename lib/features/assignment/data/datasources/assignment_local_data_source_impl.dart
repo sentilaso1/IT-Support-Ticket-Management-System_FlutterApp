@@ -32,8 +32,7 @@ class AssignmentLocalDataSourceImpl implements IAssignmentLocalDataSource {
         t.status AS status,
         t.createdAt AS ticketCreatedAt,
         t.updatedAt AS ticketUpdatedAt,
-        pu.message AS lastProgressMessage,
-        pu.progressPercent AS lastProgressPercent
+        pu.message AS lastProgressMessage
       FROM ${AppDatabase.ticketAssignmentsTable} a
       INNER JOIN ${AppDatabase.ticketsTable} t ON t.id = a.ticketId
       LEFT JOIN ${AppDatabase.progressUpdatesTable} pu ON pu.id = (
@@ -84,8 +83,7 @@ class AssignmentLocalDataSourceImpl implements IAssignmentLocalDataSource {
         t.status AS status,
         t.createdAt AS ticketCreatedAt,
         t.updatedAt AS ticketUpdatedAt,
-        pu.message AS lastProgressMessage,
-        pu.progressPercent AS lastProgressPercent
+        pu.message AS lastProgressMessage
       FROM ${AppDatabase.ticketAssignmentsTable} a
       INNER JOIN ${AppDatabase.ticketsTable} t ON t.id = a.ticketId
       LEFT JOIN ${AppDatabase.progressUpdatesTable} pu ON pu.id = (
@@ -134,6 +132,7 @@ class AssignmentLocalDataSourceImpl implements IAssignmentLocalDataSource {
     required int staffId,
     required String status,
     String? note,
+    String? solutionSummary,
   }) async {
     await _database.transaction((transaction) async {
       final assignmentRows = await transaction.query(
@@ -167,8 +166,10 @@ class AssignmentLocalDataSourceImpl implements IAssignmentLocalDataSource {
         {
           'status': status,
           'updatedAt': now,
-          if (status.toLowerCase() == 'closed') 'closedAt': now,
-          if (status.toLowerCase() != 'closed') 'closedAt': null,
+          if (status == 'Resolved') 'resolvedAt': now,
+          if (status == 'Resolved') 'solutionSummary': solutionSummary,
+          if (status == 'Closed') 'closedAt': now,
+          if (status != 'Closed') 'closedAt': null,
         },
         where: 'id = ?',
         whereArgs: [ticketId],

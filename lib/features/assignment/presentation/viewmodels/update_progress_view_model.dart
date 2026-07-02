@@ -54,25 +54,33 @@ class UpdateProgressViewModel extends ChangeNotifier {
 
   Future<bool> submitUpdate({
     required String message,
-    required int progressPercent,
     required String status,
+    String? solutionSummary,
   }) async {
+    final normalizedMessage = message.trim();
+    if (normalizedMessage.isEmpty) {
+      _status = UpdateProgressStatus.failure;
+      _errorMessage = 'Progress note is required.';
+      notifyListeners();
+      return false;
+    }
+
     _status = UpdateProgressStatus.loading;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await _assignmentService.addProgressUpdate(
-        ticketId: ticketId,
-        staffId: staffId,
-        message: message,
-        progressPercent: progressPercent,
-      );
       await _assignmentService.updateTicketStatus(
         ticketId: ticketId,
         staffId: staffId,
         status: status,
-        note: message,
+        note: normalizedMessage,
+        solutionSummary: solutionSummary,
+      );
+      await _assignmentService.addProgressUpdate(
+        ticketId: ticketId,
+        staffId: staffId,
+        message: normalizedMessage,
       );
       _assignment = await _assignmentService.getAssignmentByTicket(
         ticketId: ticketId,

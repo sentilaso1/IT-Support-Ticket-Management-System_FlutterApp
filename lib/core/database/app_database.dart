@@ -7,7 +7,7 @@ class AppDatabase {
   AppDatabase._();
 
   static const String databaseName = 'it_support.db';
-  static const int databaseVersion = 5;
+  static const int databaseVersion = 6;
 
   static const String usersTable = 'users';
   static const String departmentsTable = 'departments';
@@ -68,6 +68,9 @@ class AppDatabase {
     }
     if (oldVersion < 5) {
       await _migrateUsersV4ToV5(database);
+    }
+    if (oldVersion < 6) {
+      await _migrateTicketsV5ToV6(database);
     }
     await _createIndexes(database);
     await seedReferenceData(databaseOverride: database);
@@ -143,11 +146,13 @@ class AppDatabase {
         issueType TEXT NOT NULL,
         priority TEXT NOT NULL,
         status TEXT NOT NULL,
+        solutionSummary TEXT,
         createdByUserId INTEGER,
         assignedStaffId INTEGER,
         categoryId INTEGER,
         priorityId INTEGER,
         departmentId INTEGER,
+        resolvedAt TEXT,
         closedAt TEXT,
         reopenedAt TEXT,
         createdAt TEXT NOT NULL,
@@ -183,7 +188,6 @@ class AppDatabase {
         ticketId INTEGER NOT NULL,
         staffId INTEGER NOT NULL,
         message TEXT NOT NULL,
-        progressPercent INTEGER,
         createdAt TEXT NOT NULL,
         updatedAt TEXT,
         FOREIGN KEY (ticketId) REFERENCES $ticketsTable(id) ON DELETE CASCADE,
@@ -355,6 +359,24 @@ class AppDatabase {
     }
   }
 
+  static Future<void> _migrateTicketsV5ToV6(Database database) async {
+    final existingColumns = await _getColumnNames(database, ticketsTable);
+    final columnsToAdd = <String, String>{
+      'solutionSummary': 'TEXT',
+      'resolvedAt': 'TEXT',
+    };
+
+    for (final entry in columnsToAdd.entries) {
+      if (existingColumns.contains(entry.key)) {
+        continue;
+      }
+
+      await database.execute(
+        'ALTER TABLE $ticketsTable ADD COLUMN ${entry.key} ${entry.value}',
+      );
+    }
+  }
+
   static Future<Set<String>> _getColumnNames(
     Database database,
     String tableName,
@@ -368,148 +390,402 @@ class AppDatabase {
     final now = DateTime.now().toIso8601String();
 
     await database.transaction((transaction) async {
-      await transaction.insert(
-        departmentsTable,
-        {
-          'name': 'IT Support',
-          'description': 'General technical support team',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(departmentsTable, {
+        'name': 'IT Support',
+        'description': 'General technical support team',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        departmentsTable,
-        {
-          'name': 'Network',
-          'description': 'Network and connectivity support',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(departmentsTable, {
+        'name': 'Network',
+        'description': 'Network and connectivity support',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        departmentsTable,
-        {
-          'name': 'Hardware',
-          'description': 'Device, printer, and hardware support',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(departmentsTable, {
+        'name': 'Hardware',
+        'description': 'Device, printer, and hardware support',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        categoriesTable,
-        {
-          'name': 'Network Issue',
-          'description': 'Internet, Wi-Fi, VPN, or LAN problems',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(categoriesTable, {
+        'name': 'Network Issue',
+        'description': 'Internet, Wi-Fi, VPN, or LAN problems',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        categoriesTable,
-        {
-          'name': 'Hardware Issue',
-          'description': 'Laptop, monitor, printer, or peripheral problems',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(categoriesTable, {
+        'name': 'Hardware Issue',
+        'description': 'Laptop, monitor, printer, or peripheral problems',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        categoriesTable,
-        {
-          'name': 'Software Issue',
-          'description': 'Application installation, crash, or access problems',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(categoriesTable, {
+        'name': 'Software Issue',
+        'description': 'Application installation, crash, or access problems',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        prioritiesTable,
-        {
-          'name': 'Low',
-          'level': 1,
-          'slaHours': 72,
-          'colorHex': '#2E7D32',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(prioritiesTable, {
+        'name': 'Low',
+        'level': 1,
+        'slaHours': 72,
+        'colorHex': '#2E7D32',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        prioritiesTable,
-        {
-          'name': 'Medium',
-          'level': 2,
-          'slaHours': 48,
-          'colorHex': '#F9A825',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(prioritiesTable, {
+        'name': 'Medium',
+        'level': 2,
+        'slaHours': 48,
+        'colorHex': '#F9A825',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        prioritiesTable,
-        {
-          'name': 'High',
-          'level': 3,
-          'slaHours': 24,
-          'colorHex': '#EF6C00',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(prioritiesTable, {
+        'name': 'High',
+        'level': 3,
+        'slaHours': 24,
+        'colorHex': '#EF6C00',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
-        prioritiesTable,
-        {
-          'name': 'Critical',
-          'level': 4,
-          'slaHours': 4,
-          'colorHex': '#C62828',
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      await transaction.insert(prioritiesTable, {
+        'name': 'Critical',
+        'level': 4,
+        'slaHours': 4,
+        'colorHex': '#C62828',
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      await transaction.insert(
+      await transaction.insert(usersTable, {
+        'fullName': 'System Administrator',
+        'username': 'admin',
+        'email': 'admin@example.com',
+        'passwordHash': PasswordHasher.hash('Admin@123'),
+        'role': 'admin',
+        'isActive': 1,
+        'mustChangePassword': 1,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      await transaction.insert(usersTable, {
+        'fullName': 'Support Staff',
+        'username': 'staff',
+        'email': 'staff@example.com',
+        'passwordHash': PasswordHasher.hash('Staff@123'),
+        'role': 'staff',
+        'departmentId': 1,
+        'isActive': 1,
+        'mustChangePassword': 1,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      await transaction.insert(usersTable, {
+        'fullName': 'Support Staff',
+        'username': 'staff',
+        'email': 'staff@example.com',
+        'passwordHash': PasswordHasher.hash('Staff@123'),
+        'role': 'staff',
+        'isActive': 1,
+        'mustChangePassword': 1,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      final adminId = await _findSeedRowId(
+        transaction,
         usersTable,
-        {
-          'fullName': 'System Administrator',
-          'username': 'admin',
-          'email': 'admin@example.com',
-          'passwordHash': PasswordHasher.hash('Admin@123'),
-          'role': 'admin',
-          'isActive': 1,
-          'mustChangePassword': 1,
-          'failedLoginAttempts': 0,
-          'lockedUntil': null,
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
+        'username',
+        'admin',
+      );
+      final staffId = await _findSeedRowId(
+        transaction,
+        usersTable,
+        'username',
+        'staff',
       );
 
-      await transaction.insert(
+      await transaction.insert(usersTable, {
+        'fullName': 'Demo Employee',
+        'username': 'employee',
+        'email': 'employee@example.com',
+        'passwordHash': PasswordHasher.hash('User@123'),
+        'role': 'user',
+        'departmentId': 1,
+        'isActive': 1,
+        'mustChangePassword': 1,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      final employeeId = await _findSeedRowId(
+        transaction,
         usersTable,
-        {
-          'fullName': 'Support Staff',
-          'username': 'staff',
-          'email': 'staff@example.com',
-          'passwordHash': PasswordHasher.hash('Staff@123'),
-          'role': 'staff',
-          'departmentId': 1,
-          'isActive': 1,
-          'mustChangePassword': 1,
-          'failedLoginAttempts': 0,
-          'lockedUntil': null,
-          'createdAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
+        'username',
+        'employee',
       );
+      final networkCategoryId = await _findSeedRowId(
+        transaction,
+        categoriesTable,
+        'name',
+        'Network Issue',
+      );
+      final hardwareCategoryId = await _findSeedRowId(
+        transaction,
+        categoriesTable,
+        'name',
+        'Hardware Issue',
+      );
+      final softwareCategoryId = await _findSeedRowId(
+        transaction,
+        categoriesTable,
+        'name',
+        'Software Issue',
+      );
+      final criticalPriorityId = await _findSeedRowId(
+        transaction,
+        prioritiesTable,
+        'name',
+        'Critical',
+      );
+      final highPriorityId = await _findSeedRowId(
+        transaction,
+        prioritiesTable,
+        'name',
+        'High',
+      );
+      final mediumPriorityId = await _findSeedRowId(
+        transaction,
+        prioritiesTable,
+        'name',
+        'Medium',
+      );
+
+      if (staffId != null) {
+        final vpnTicketId = await _insertSeedTicketIfAbsent(
+          transaction,
+          title: '[Seed] VPN disconnects during payroll',
+          description:
+              'Finance team cannot keep VPN connected while submitting payroll.',
+          issueType: 'Network',
+          priority: 'Critical',
+          status: 'Processing',
+          createdByUserId: employeeId,
+          staffId: staffId,
+          categoryId: networkCategoryId,
+          priorityId: criticalPriorityId,
+          departmentId: 1,
+          createdAt: now,
+        );
+
+        final printerTicketId = await _insertSeedTicketIfAbsent(
+          transaction,
+          title: '[Seed] Printer on floor 3 shows paper jam',
+          description:
+              'Shared printer reports a paper jam after every restart.',
+          issueType: 'Hardware',
+          priority: 'High',
+          status: 'Assigned',
+          createdByUserId: employeeId,
+          staffId: staffId,
+          categoryId: hardwareCategoryId,
+          priorityId: highPriorityId,
+          departmentId: 1,
+          createdAt: now,
+        );
+
+        final emailTicketId = await _insertSeedTicketIfAbsent(
+          transaction,
+          title: '[Seed] Outlook cannot sync shared mailbox',
+          description:
+              'User can sign in but the accounting shared mailbox never syncs.',
+          issueType: 'Software',
+          priority: 'Medium',
+          status: 'Pending',
+          createdByUserId: employeeId,
+          staffId: staffId,
+          categoryId: softwareCategoryId,
+          priorityId: mediumPriorityId,
+          departmentId: 1,
+          createdAt: now,
+        );
+
+        await _insertSeedAssignmentIfAbsent(
+          transaction,
+          ticketId: vpnTicketId,
+          staffId: staffId,
+          assignedByUserId: adminId,
+          note: 'Seed assignment for staff queue testing.',
+          createdAt: now,
+        );
+        await _insertSeedAssignmentIfAbsent(
+          transaction,
+          ticketId: printerTicketId,
+          staffId: staffId,
+          assignedByUserId: adminId,
+          note: 'Seed assignment for staff queue testing.',
+          createdAt: now,
+        );
+        await _insertSeedAssignmentIfAbsent(
+          transaction,
+          ticketId: emailTicketId,
+          staffId: staffId,
+          assignedByUserId: adminId,
+          note: 'Seed assignment for staff queue testing.',
+          createdAt: now,
+        );
+
+        await _insertSeedProgressUpdateIfAbsent(
+          transaction,
+          ticketId: vpnTicketId,
+          staffId: staffId,
+          message: 'Confirmed issue and started checking VPN gateway logs.',
+          createdAt: now,
+        );
+        await _insertSeedProgressUpdateIfAbsent(
+          transaction,
+          ticketId: emailTicketId,
+          staffId: staffId,
+          message: 'Waiting for mailbox permission refresh to complete.',
+          createdAt: now,
+        );
+      }
+    });
+  }
+
+  static Future<int?> _findSeedRowId(
+    Transaction transaction,
+    String table,
+    String column,
+    Object value,
+  ) async {
+    final rows = await transaction.query(
+      table,
+      columns: ['id'],
+      where: '$column = ?',
+      whereArgs: [value],
+      limit: 1,
+    );
+
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    return rows.first['id'] as int;
+  }
+
+  static Future<int> _insertSeedTicketIfAbsent(
+    Transaction transaction, {
+    required String title,
+    required String description,
+    required String issueType,
+    required String priority,
+    required String status,
+    required int? createdByUserId,
+    required int staffId,
+    required int? categoryId,
+    required int? priorityId,
+    required int departmentId,
+    required String createdAt,
+  }) async {
+    final existingId = await _findSeedRowId(
+      transaction,
+      ticketsTable,
+      'title',
+      title,
+    );
+    if (existingId != null) {
+      await transaction.update(
+        ticketsTable,
+        {
+          'status': status,
+          'assignedStaffId': staffId,
+          'categoryId': categoryId,
+          'priorityId': priorityId,
+          'departmentId': departmentId,
+          'updatedAt': createdAt,
+        },
+        where: 'id = ?',
+        whereArgs: [existingId],
+      );
+      return existingId;
+    }
+
+    return transaction.insert(ticketsTable, {
+      'title': title,
+      'description': description,
+      'issueType': issueType,
+      'priority': priority,
+      'status': status,
+      'createdByUserId': createdByUserId,
+      'assignedStaffId': staffId,
+      'categoryId': categoryId,
+      'priorityId': priorityId,
+      'departmentId': departmentId,
+      'createdAt': createdAt,
+    });
+  }
+
+  static Future<void> _insertSeedAssignmentIfAbsent(
+    Transaction transaction, {
+    required int ticketId,
+    required int staffId,
+    required int? assignedByUserId,
+    required String note,
+    required String createdAt,
+  }) async {
+    final rows = await transaction.query(
+      ticketAssignmentsTable,
+      columns: ['id'],
+      where: 'ticketId = ? AND staffId = ?',
+      whereArgs: [ticketId, staffId],
+      limit: 1,
+    );
+    if (rows.isNotEmpty) {
+      return;
+    }
+
+    await transaction.insert(ticketAssignmentsTable, {
+      'ticketId': ticketId,
+      'staffId': staffId,
+      'assignedByUserId': assignedByUserId,
+      'assignedAt': createdAt,
+      'note': note,
+      'isActive': 1,
+      'createdAt': createdAt,
+    });
+  }
+
+  static Future<void> _insertSeedProgressUpdateIfAbsent(
+    Transaction transaction, {
+    required int ticketId,
+    required int staffId,
+    required String message,
+    required String createdAt,
+  }) async {
+    final rows = await transaction.query(
+      progressUpdatesTable,
+      columns: ['id'],
+      where: 'ticketId = ? AND staffId = ? AND message = ?',
+      whereArgs: [ticketId, staffId, message],
+      limit: 1,
+    );
+    if (rows.isNotEmpty) {
+      return;
+    }
+
+    await transaction.insert(progressUpdatesTable, {
+      'ticketId': ticketId,
+      'staffId': staffId,
+      'message': message,
+      'createdAt': createdAt,
     });
   }
 

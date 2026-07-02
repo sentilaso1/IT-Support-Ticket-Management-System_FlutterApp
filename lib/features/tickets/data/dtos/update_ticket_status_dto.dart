@@ -5,6 +5,7 @@ class UpdateTicketStatusDto {
     this.oldStatus,
     this.changedByUserId,
     this.note,
+    this.solutionSummary,
     DateTime? changedAt,
   }) : changedAt = changedAt ?? DateTime.now();
 
@@ -13,15 +14,17 @@ class UpdateTicketStatusDto {
   final String newStatus;
   final int? changedByUserId;
   final String? note;
+  final String? solutionSummary;
   final DateTime changedAt;
 
   factory UpdateTicketStatusDto.fromMap(Map<String, Object?> map) {
     return UpdateTicketStatusDto(
       ticketId: map['ticketId'] as int,
       oldStatus: map['fromStatus'] as String?,
-      newStatus: (map['toStatus'] as String?) ?? 'Open',
+      newStatus: (map['toStatus'] as String?) ?? 'Submitted',
       changedByUserId: map['changedByUserId'] as int?,
       note: map['note'] as String?,
+      solutionSummary: map['solutionSummary'] as String?,
       changedAt: map['changedAt'] == null
           ? null
           : DateTime.parse(map['changedAt'] as String),

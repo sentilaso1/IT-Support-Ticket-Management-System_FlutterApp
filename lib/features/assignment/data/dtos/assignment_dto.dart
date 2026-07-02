@@ -17,7 +17,6 @@ class AssignmentDto {
     this.ticketCreatedAt,
     this.ticketUpdatedAt,
     this.lastProgressMessage,
-    this.lastProgressPercent,
   });
 
   final int? id;
@@ -37,7 +36,6 @@ class AssignmentDto {
   final DateTime? ticketCreatedAt;
   final DateTime? ticketUpdatedAt;
   final String? lastProgressMessage;
-  final int? lastProgressPercent;
 
   factory AssignmentDto.fromMap(Map<String, Object?> map) {
     return AssignmentDto(
@@ -64,7 +62,6 @@ class AssignmentDto {
           ? null
           : DateTime.parse(map['ticketUpdatedAt'] as String),
       lastProgressMessage: map['lastProgressMessage'] as String?,
-      lastProgressPercent: map['lastProgressPercent'] as int?,
     );
   }
 

@@ -10,7 +10,6 @@ class ProgressUpdateMapper {
       ticketId: dto.ticketId,
       staffId: dto.staffId,
       message: dto.message,
-      progressPercent: dto.progressPercent,
       createdAt: dto.createdAt,
       updatedAt: dto.updatedAt,
     );

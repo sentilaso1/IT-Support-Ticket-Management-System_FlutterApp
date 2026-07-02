@@ -15,7 +15,6 @@ class Assignment {
     required this.ticketCreatedAt,
     this.ticketUpdatedAt,
     this.lastProgressMessage,
-    this.lastProgressPercent,
   });
 
   final int id;
@@ -33,7 +32,6 @@ class Assignment {
   final DateTime ticketCreatedAt;
   final DateTime? ticketUpdatedAt;
   final String? lastProgressMessage;
-  final int? lastProgressPercent;
 
   bool get isClosed => status.toLowerCase() == 'closed';
 }
