@@ -1,4 +1,5 @@
 enum UserRole {
+  superAdmin('super_admin'),
   admin('admin'),
   staff('staff'),
   user('user');

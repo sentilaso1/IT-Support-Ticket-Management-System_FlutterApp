@@ -9,9 +9,11 @@ class UpdateUserPage extends StatefulWidget {
   const UpdateUserPage({
     super.key,
     required this.user,
+    required this.currentUserRole,
   });
 
   final ManagedUser user;
+  final String currentUserRole;
 
   @override
   State<UpdateUserPage> createState() => _UpdateUserPageState();
@@ -134,7 +136,7 @@ class _UpdateUserPageState extends State<UpdateUserPage> {
                         labelText: 'Role',
                         border: OutlineInputBorder(),
                       ),
-                      items: UserRole.values.map((role) {
+                      items: _availableRoles.map((role) {
                         return DropdownMenuItem(
                           value: role.value,
                           child: Text(role.value),
@@ -211,5 +213,14 @@ class _UpdateUserPageState extends State<UpdateUserPage> {
         );
       },
     );
+  }
+
+  List<UserRole> get _availableRoles {
+    final actorRole = UserRole.fromValue(widget.currentUserRole);
+    if (actorRole == UserRole.superAdmin) {
+      return const [UserRole.admin, UserRole.staff, UserRole.user];
+    }
+
+    return const [UserRole.staff, UserRole.user];
   }
 }

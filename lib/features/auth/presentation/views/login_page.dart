@@ -109,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
                             controller: _usernameController,
                             enabled: !viewModel.isLoading,
                             decoration: const InputDecoration(
-                              labelText: 'Username',
+                              labelText: 'Username or email',
                               prefixIcon: Icon(Icons.person_outline),
                               border: OutlineInputBorder(),
                             ),
@@ -168,7 +168,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 16),
                           const Text(
-                            'Demo admin: admin / Admin@123',
+                            'Demo admin: admin or admin@example.com / Admin@123',
                             textAlign: TextAlign.center,
                           ),
                         ],

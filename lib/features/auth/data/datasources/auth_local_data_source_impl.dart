@@ -20,11 +20,11 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
 
   @override
   Future<LoginResponseDto> login(LoginRequestDto request) async {
-    final username = request.username.trim();
+    final login = request.username.trim();
     final rows = await _database.query(
       AppDatabase.usersTable,
-      where: 'LOWER(username) = LOWER(?)',
-      whereArgs: [username],
+      where: 'LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)',
+      whereArgs: [login, login],
       limit: 1,
     );
 

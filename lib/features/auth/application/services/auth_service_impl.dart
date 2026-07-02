@@ -15,7 +15,7 @@ class AuthServiceImpl implements IAuthService {
   }) {
     final normalizedUsername = username.trim();
     if (normalizedUsername.isEmpty) {
-      throw const AuthException('Username is required.');
+      throw const AuthException('Username or email is required.');
     }
 
     if (password.isEmpty) {
