@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../assignment/presentation/viewmodels/technician_queue_view_model.dart';
 import '../../../assignment/presentation/views/technician_queue_page.dart';
+import '../../../tickets/presentation/views/ticket_list_page.dart';
 import 'login_page.dart';
 import '../viewmodels/login_view_model.dart';
 import '../../../user_management/presentation/views/user_list_page.dart';
@@ -46,6 +47,20 @@ class HomePage extends StatelessWidget {
             staffId: user.id,
           ),
         ),
+      ),
+    );
+  }
+
+  void _openMyTickets(BuildContext context) {
+    final user = viewModel.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TicketListPage(requesterId: user.id),
       ),
     );
   }
@@ -121,6 +136,14 @@ class HomePage extends StatelessWidget {
                         onPressed: () => _openAssignedTickets(context),
                         icon: const Icon(Icons.assignment_ind),
                         label: const Text('Assigned tickets'),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (user?.role == 'user') ...[
+                      FilledButton.icon(
+                        onPressed: () => _openMyTickets(context),
+                        icon: const Icon(Icons.confirmation_number_outlined),
+                        label: const Text('My tickets'),
                       ),
                       const SizedBox(height: 12),
                     ],
