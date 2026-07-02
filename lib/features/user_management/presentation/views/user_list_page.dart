@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/enums/user_role.dart';
 import '../../domain/entities/managed_user.dart';
 import '../viewmodels/user_list_view_model.dart';
 import 'create_user_page.dart';
 import 'update_user_page.dart';
 
 class UserListPage extends StatefulWidget {
-  const UserListPage({super.key});
+  const UserListPage({super.key, required this.currentUserRole});
+
+  final String currentUserRole;
 
   @override
   State<UserListPage> createState() => _UserListPageState();
@@ -26,7 +30,9 @@ class _UserListPageState extends State<UserListPage> {
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => const CreateUserPage(),
+        builder: (_) => CreateUserPage(
+          currentUserRole: widget.currentUserRole,
+        ),
       ),
     );
 
@@ -42,7 +48,10 @@ class _UserListPageState extends State<UserListPage> {
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => UpdateUserPage(user: user),
+        builder: (_) => UpdateUserPage(
+          user: user,
+          currentUserRole: widget.currentUserRole,
+        ),
       ),
     );
 
@@ -57,43 +66,111 @@ class _UserListPageState extends State<UserListPage> {
   ) async {
     final controller = TextEditingController(text: 'Temp@1234');
     var obscurePassword = true;
+    var copiedPassword = false;
     final password = await showDialog<String>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final visiblePassword = obscurePassword
+                ? List.filled(controller.text.length, '•').join()
+                : controller.text;
+            void copyPassword() {
+              Clipboard.setData(ClipboardData(text: controller.text));
+              setDialogState(() {
+                copiedPassword = true;
+              });
+            }
+
             return AlertDialog(
               title: Text('Reset password for ${user.username}'),
-              content: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  labelText: 'Temporary password',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: obscurePassword
-                        ? 'Show password'
-                        : 'Hide password',
-                    onPressed: () {
-                      setDialogState(() {
-                        obscurePassword = !obscurePassword;
-                      });
-                    },
-                    icon: Icon(
-                      obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+              content: Shortcuts(
+                shortcuts: const {
+                  SingleActivator(LogicalKeyboardKey.keyC, control: true):
+                      _CopyTemporaryPasswordIntent(),
+                },
+                child: Actions(
+                  actions: {
+                    _CopyTemporaryPasswordIntent:
+                        CallbackAction<_CopyTemporaryPasswordIntent>(
+                      onInvoke: (_) {
+                        copyPassword();
+                        return null;
+                      },
+                    ),
+                  },
+                  child: Focus(
+                    autofocus: true,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Temporary password',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Copy password',
+                                  onPressed: copyPassword,
+                                  icon: const Icon(Icons.copy_outlined),
+                                ),
+                                IconButton(
+                                  tooltip: obscurePassword
+                                      ? 'Show password'
+                                      : 'Hide password',
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      obscurePassword = !obscurePassword;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            suffixIconConstraints: const BoxConstraints(
+                              minWidth: 96,
+                              minHeight: 48,
+                            ),
+                          ),
+                          child: Text(
+                            visiblePassword,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ),
+                        if (copiedPassword) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Temporary password copied.',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
-                obscureText: obscurePassword,
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    FocusScope.of(context).unfocus();
+                    Navigator.pop(context);
+                  },
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () => Navigator.pop(context, controller.text),
+                  onPressed: () {
+                    FocusScope.of(context).unfocus();
+                    Navigator.pop(context, controller.text);
+                  },
                   child: const Text('Reset'),
                 ),
               ],
@@ -102,7 +179,9 @@ class _UserListPageState extends State<UserListPage> {
         );
       },
     );
-    controller.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
 
     if (password == null) {
       return;
@@ -157,6 +236,7 @@ class _UserListPageState extends State<UserListPage> {
               ),
               body: _UserListBody(
                 viewModel: viewModel,
+                currentUserRole: widget.currentUserRole,
                 onEdit: (user) => _openUpdateUser(viewModel, user),
                 onToggleActive: (user) {
                   viewModel.setUserActive(
@@ -177,12 +257,14 @@ class _UserListPageState extends State<UserListPage> {
 class _UserListBody extends StatefulWidget {
   const _UserListBody({
     required this.viewModel,
+    required this.currentUserRole,
     required this.onEdit,
     required this.onToggleActive,
     required this.onResetPassword,
   });
 
   final UserListViewModel viewModel;
+  final String currentUserRole;
   final ValueChanged<ManagedUser> onEdit;
   final ValueChanged<ManagedUser> onToggleActive;
   final ValueChanged<ManagedUser> onResetPassword;
@@ -221,6 +303,7 @@ class _UserListBodyState extends State<_UserListBody> {
         final user = viewModel.users[index];
         return _UserTile(
           user: user,
+          currentUserRole: widget.currentUserRole,
           onEdit: () => widget.onEdit(user),
           onToggleActive: () => widget.onToggleActive(user),
           onResetPassword: () => widget.onResetPassword(user),
@@ -235,18 +318,21 @@ class _UserListBodyState extends State<_UserListBody> {
 class _UserTile extends StatelessWidget {
   const _UserTile({
     required this.user,
+    required this.currentUserRole,
     required this.onEdit,
     required this.onToggleActive,
     required this.onResetPassword,
   });
 
   final ManagedUser user;
+  final String currentUserRole;
   final VoidCallback onEdit;
   final VoidCallback onToggleActive;
   final VoidCallback onResetPassword;
 
   @override
   Widget build(BuildContext context) {
+    final canManageUser = _canManageUser();
     return Card(
       child: ListTile(
         leading: CircleAvatar(
@@ -260,39 +346,56 @@ class _UserTile extends StatelessWidget {
           '${user.mustChangePassword ? ' • Must change password' : ''}',
         ),
         isThreeLine: true,
-        trailing: PopupMenuButton<_UserAction>(
-          onSelected: (action) {
-            switch (action) {
-              case _UserAction.edit:
-                onEdit();
-                break;
-              case _UserAction.toggleActive:
-                onToggleActive();
-                break;
-              case _UserAction.resetPassword:
-                onResetPassword();
-                break;
-            }
-          },
-          itemBuilder: (context) {
-            return [
-              const PopupMenuItem(
-                value: _UserAction.edit,
-                child: Text('Edit'),
-              ),
-              PopupMenuItem(
-                value: _UserAction.toggleActive,
-                child: Text(user.isActive ? 'Disable' : 'Reactivate'),
-              ),
-              const PopupMenuItem(
-                value: _UserAction.resetPassword,
-                child: Text('Reset password'),
-              ),
-            ];
-          },
-        ),
+        trailing: canManageUser
+            ? PopupMenuButton<_UserAction>(
+                onSelected: (action) {
+                  switch (action) {
+                    case _UserAction.edit:
+                      onEdit();
+                      break;
+                    case _UserAction.toggleActive:
+                      onToggleActive();
+                      break;
+                    case _UserAction.resetPassword:
+                      onResetPassword();
+                      break;
+                  }
+                },
+                itemBuilder: (context) {
+                  return [
+                    const PopupMenuItem(
+                      value: _UserAction.edit,
+                      child: Text('Edit'),
+                    ),
+                    PopupMenuItem(
+                      value: _UserAction.toggleActive,
+                      child: Text(user.isActive ? 'Disable' : 'Reactivate'),
+                    ),
+                    const PopupMenuItem(
+                      value: _UserAction.resetPassword,
+                      child: Text('Reset password'),
+                    ),
+                  ];
+                },
+              )
+            : null,
       ),
     );
+  }
+
+  bool _canManageUser() {
+    final actorRole = UserRole.fromValue(currentUserRole);
+    final targetRole = UserRole.fromValue(user.role);
+
+    if (targetRole == UserRole.superAdmin) {
+      return false;
+    }
+
+    if (actorRole == UserRole.superAdmin) {
+      return true;
+    }
+
+    return targetRole == UserRole.staff || targetRole == UserRole.user;
   }
 }
 
@@ -300,4 +403,8 @@ enum _UserAction {
   edit,
   toggleActive,
   resetPassword,
+}
+
+class _CopyTemporaryPasswordIntent extends Intent {
+  const _CopyTemporaryPasswordIntent();
 }

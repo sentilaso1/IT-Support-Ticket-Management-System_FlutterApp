@@ -7,7 +7,7 @@ class AppDatabase {
   AppDatabase._();
 
   static const String databaseName = 'it_support.db';
-  static const int databaseVersion = 6;
+  static const int databaseVersion = 7;
 
   static const String usersTable = 'users';
   static const String departmentsTable = 'departments';
@@ -71,6 +71,9 @@ class AppDatabase {
     }
     if (oldVersion < 6) {
       await _migrateTicketsV5ToV6(database);
+    }
+    if (oldVersion < 7) {
+      await _migrateCategoryDepartmentsV6ToV7(database);
     }
     await _createIndexes(database);
     await seedReferenceData(databaseOverride: database);
@@ -377,6 +380,68 @@ class AppDatabase {
     }
   }
 
+  static Future<void> _migrateCategoryDepartmentsV6ToV7(
+    Database database,
+  ) async {
+    await _syncCategoryDepartments(
+      database,
+      DateTime.now().toIso8601String(),
+    );
+  }
+
+  static Future<void> _syncCategoryDepartments(
+    DatabaseExecutor executor,
+    String now,
+  ) async {
+    await executor.rawInsert(
+      '''
+      INSERT OR IGNORE INTO $categoriesTable (
+        name,
+        description,
+        departmentId,
+        createdAt
+      )
+      VALUES (
+        ?,
+        ?,
+        (SELECT id FROM $departmentsTable WHERE name = ? LIMIT 1),
+        ?
+      )
+      ''',
+      [
+        'General Support',
+        'General IT support requests that do not fit another category',
+        'IT Support',
+        now,
+      ],
+    );
+
+    final categoryDepartments = <String, String>{
+      'General Support': 'IT Support',
+      'Network Issue': 'Network',
+      'Hardware Issue': 'Hardware',
+      'Software Issue': 'IT Support',
+    };
+
+    for (final entry in categoryDepartments.entries) {
+      await executor.rawUpdate(
+        '''
+        UPDATE $categoriesTable
+        SET
+          departmentId = (
+            SELECT id
+            FROM $departmentsTable
+            WHERE name = ?
+            LIMIT 1
+          ),
+          updatedAt = ?
+        WHERE name = ?
+        ''',
+        [entry.value, now, entry.key],
+      );
+    }
+  }
+
   static Future<Set<String>> _getColumnNames(
     Database database,
     String tableName,
@@ -426,6 +491,8 @@ class AppDatabase {
         'createdAt': now,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
+      await _syncCategoryDepartments(transaction, now);
+
       await transaction.insert(prioritiesTable, {
         'name': 'Low',
         'level': 1,
@@ -459,17 +526,40 @@ class AppDatabase {
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
       await transaction.insert(usersTable, {
+        'fullName': 'Super Administrator',
+        'username': 'superadmin',
+        'email': 'superadmin@example.com',
+        'passwordHash': PasswordHasher.hash('Super@123'),
+        'role': 'super_admin',
+        'isActive': 1,
+        'mustChangePassword': 0,
+        'failedLoginAttempts': 0,
+        'lockedUntil': null,
+        'createdAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      await transaction.insert(usersTable, {
         'fullName': 'System Administrator',
         'username': 'admin',
         'email': 'admin@example.com',
         'passwordHash': PasswordHasher.hash('Admin@123'),
         'role': 'admin',
         'isActive': 1,
-        'mustChangePassword': 1,
+        'mustChangePassword': 0,
         'failedLoginAttempts': 0,
         'lockedUntil': null,
         'createdAt': now,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      await transaction.update(
+        usersTable,
+        {
+          'mustChangePassword': 0,
+          'updatedAt': now,
+        },
+        where: 'username IN (?, ?)',
+        whereArgs: ['superadmin', 'admin'],
+      );
 
       await transaction.insert(usersTable, {
         'fullName': 'Support Staff',
@@ -531,6 +621,24 @@ class AppDatabase {
         'username',
         'employee',
       );
+      final itSupportDepartmentId = await _findSeedRowId(
+        transaction,
+        departmentsTable,
+        'name',
+        'IT Support',
+      );
+      final networkDepartmentId = await _findSeedRowId(
+        transaction,
+        departmentsTable,
+        'name',
+        'Network',
+      );
+      final hardwareDepartmentId = await _findSeedRowId(
+        transaction,
+        departmentsTable,
+        'name',
+        'Hardware',
+      );
       final networkCategoryId = await _findSeedRowId(
         transaction,
         categoriesTable,
@@ -581,7 +689,7 @@ class AppDatabase {
           staffId: staffId,
           categoryId: networkCategoryId,
           priorityId: criticalPriorityId,
-          departmentId: 1,
+          departmentId: networkDepartmentId ?? 1,
           createdAt: now,
         );
 
@@ -597,7 +705,7 @@ class AppDatabase {
           staffId: staffId,
           categoryId: hardwareCategoryId,
           priorityId: highPriorityId,
-          departmentId: 1,
+          departmentId: hardwareDepartmentId ?? 1,
           createdAt: now,
         );
 
@@ -613,7 +721,7 @@ class AppDatabase {
           staffId: staffId,
           categoryId: softwareCategoryId,
           priorityId: mediumPriorityId,
-          departmentId: 1,
+          departmentId: itSupportDepartmentId ?? 1,
           createdAt: now,
         );
 

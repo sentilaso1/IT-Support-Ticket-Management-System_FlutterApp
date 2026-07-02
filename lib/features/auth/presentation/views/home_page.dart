@@ -123,13 +123,20 @@ class HomePage extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
-                    if (_hasRole(user?.role, UserRole.admin)) ...[
+                    if (_canManageUsers(user?.role)) ...[
                       FilledButton.icon(
                         onPressed: () {
+                          final currentUserRole = user?.role;
+                          if (currentUserRole == null) {
+                            return;
+                          }
+
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const UserListPage(),
+                              builder: (_) => UserListPage(
+                                currentUserRole: currentUserRole,
+                              ),
                             ),
                           );
                         },
@@ -175,5 +182,14 @@ class HomePage extends StatelessWidget {
     }
 
     return UserRole.fromValue(role.trim()) == expectedRole;
+  }
+
+  bool _canManageUsers(String? role) {
+    if (role == null) {
+      return false;
+    }
+
+    final parsedRole = UserRole.fromValue(role.trim());
+    return parsedRole == UserRole.admin || parsedRole == UserRole.superAdmin;
   }
 }

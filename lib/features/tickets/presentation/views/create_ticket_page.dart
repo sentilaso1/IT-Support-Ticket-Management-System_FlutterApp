@@ -25,7 +25,7 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
 
   String _issueType = 'General';
   String _priority = 'Medium';
-  int? _categoryId;
+  int? _categoryId = 4;
 
   @override
   void initState() {
@@ -173,13 +173,16 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<int>(
-                      initialValue: _categoryId ?? 0,
+                      initialValue: _categoryId,
                       decoration: const InputDecoration(
                         labelText: 'Category',
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 0, child: Text('None')),
+                        DropdownMenuItem(
+                          value: 4,
+                          child: Text('General Support'),
+                        ),
                         DropdownMenuItem(
                           value: 1,
                           child: Text('Network Issue'),
@@ -197,7 +200,7 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
                           ? null
                           : (value) {
                               setState(() {
-                                _categoryId = value == 0 ? null : value;
+                                _categoryId = value;
                               });
                             },
                     ),

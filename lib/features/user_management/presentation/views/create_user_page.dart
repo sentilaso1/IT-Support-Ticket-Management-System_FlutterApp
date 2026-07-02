@@ -5,7 +5,9 @@ import '../../../../core/enums/user_role.dart';
 import '../viewmodels/create_user_view_model.dart';
 
 class CreateUserPage extends StatefulWidget {
-  const CreateUserPage({super.key});
+  const CreateUserPage({super.key, required this.currentUserRole});
+
+  final String currentUserRole;
 
   @override
   State<CreateUserPage> createState() => _CreateUserPageState();
@@ -83,6 +85,7 @@ class _CreateUserPageState extends State<CreateUserPage> {
                 phoneController: _phoneController,
                 passwordController: _passwordController,
                 role: _role,
+                availableRoles: _availableRoles,
                 departmentId: _departmentId,
                 errorMessage: viewModel.errorMessage,
                 isLoading: viewModel.isLoading,
@@ -108,6 +111,15 @@ class _CreateUserPageState extends State<CreateUserPage> {
       },
     );
   }
+
+  List<UserRole> get _availableRoles {
+    final actorRole = UserRole.fromValue(widget.currentUserRole);
+    if (actorRole == UserRole.superAdmin) {
+      return const [UserRole.admin, UserRole.staff, UserRole.user];
+    }
+
+    return const [UserRole.staff, UserRole.user];
+  }
 }
 
 class _UserForm extends StatelessWidget {
@@ -118,6 +130,7 @@ class _UserForm extends StatelessWidget {
     required this.phoneController,
     required this.passwordController,
     required this.role,
+    required this.availableRoles,
     required this.departmentId,
     required this.errorMessage,
     required this.isLoading,
@@ -133,6 +146,7 @@ class _UserForm extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController passwordController;
   final String role;
+  final List<UserRole> availableRoles;
   final int? departmentId;
   final String? errorMessage;
   final bool isLoading;
@@ -191,7 +205,7 @@ class _UserForm extends StatelessWidget {
               labelText: 'Role',
               border: OutlineInputBorder(),
             ),
-            items: UserRole.values.map((role) {
+            items: availableRoles.map((role) {
               return DropdownMenuItem(
                 value: role.value,
                 child: Text(role.value),

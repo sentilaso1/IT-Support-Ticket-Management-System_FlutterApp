@@ -13,12 +13,12 @@ class TicketLocalDataSourceImpl implements ITicketLocalDataSource {
 
   @override
   Future<int> insertTicket(TicketDto ticket) async {
-    await _ensureCategoryIsUsable(ticket.categoryId);
+    final departmentId = await _getCategoryDepartmentId(ticket.categoryId);
 
     return _database.transaction((transaction) async {
       final id = await transaction.insert(
         AppDatabase.ticketsTable,
-        _ticketInsertMap(ticket),
+        _ticketInsertMap(ticket, departmentId),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
@@ -92,11 +92,11 @@ class TicketLocalDataSourceImpl implements ITicketLocalDataSource {
       throw ArgumentError('Ticket id is required for update.');
     }
 
-    await _ensureCategoryIsUsable(ticket.categoryId);
+    final departmentId = await _getCategoryDepartmentId(ticket.categoryId);
 
     return _database.update(
       AppDatabase.ticketsTable,
-      _ticketUpdateMap(ticket),
+      _ticketUpdateMap(ticket, departmentId),
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -161,14 +161,14 @@ class TicketLocalDataSourceImpl implements ITicketLocalDataSource {
     );
   }
 
-  Future<void> _ensureCategoryIsUsable(int? categoryId) async {
+  Future<int?> _getCategoryDepartmentId(int? categoryId) async {
     if (categoryId == null) {
-      return;
+      return null;
     }
 
     final rows = await _database.query(
       AppDatabase.categoriesTable,
-      columns: ['id'],
+      columns: ['id', 'departmentId'],
       where: 'id = ? AND isActive = 1',
       whereArgs: [categoryId],
       limit: 1,
@@ -177,15 +177,27 @@ class TicketLocalDataSourceImpl implements ITicketLocalDataSource {
     if (rows.isEmpty) {
       throw const AppException('Selected category is not available.');
     }
+
+    return rows.first['departmentId'] as int?;
   }
 
-  Map<String, Object?> _ticketInsertMap(TicketDto ticket) {
-    return ticket.toMap()..remove('id');
+  Map<String, Object?> _ticketInsertMap(
+    TicketDto ticket,
+    int? categoryDepartmentId,
+  ) {
+    final map = ticket.toMap()..remove('id');
+    map['departmentId'] = ticket.departmentId ?? categoryDepartmentId;
+    return map;
   }
 
-  Map<String, Object?> _ticketUpdateMap(TicketDto ticket) {
-    return ticket.toMap()
+  Map<String, Object?> _ticketUpdateMap(
+    TicketDto ticket,
+    int? categoryDepartmentId,
+  ) {
+    final map = ticket.toMap()
       ..remove('id')
       ..remove('createdAt');
+    map['departmentId'] = ticket.departmentId ?? categoryDepartmentId;
+    return map;
   }
 }
