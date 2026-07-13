@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // <-- Thêm import Provider
 
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/enums/user_role.dart';
@@ -11,6 +12,9 @@ import '../../../tickets/presentation/views/ticket_list_page.dart';
 import 'login_page.dart';
 import '../viewmodels/login_view_model.dart';
 import '../../../user_management/presentation/views/user_list_page.dart';
+// <-- Thêm import 2 màn hình của bạn
+import '../../../reports/presentation/views/admin_dashboard_page.dart';
+import '../../../categories/presentation/views/category_management_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key, required this.viewModel});
@@ -28,6 +32,38 @@ class HomePage extends StatelessWidget {
       context,
       MaterialPageRoute(builder: (_) => LoginPage(viewModel: viewModel)),
       (route) => false,
+    );
+  }
+
+  // --- THÊM HÀM MỞ DASHBOARD ---
+  Future<void> _openAdminDashboard(BuildContext context) async {
+    final dashboardVM = await ServiceLocator.adminDashboardViewModel;
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: dashboardVM,
+          child: const AdminDashboardPage(),
+        ),
+      ),
+    );
+  }
+
+  // --- THÊM HÀM MỞ CATEGORIES ---
+  Future<void> _openCategories(BuildContext context) async {
+    final categoryVM = await ServiceLocator.categoryViewModel;
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: categoryVM,
+          child: const CategoryManagementPage(),
+        ),
+      ),
     );
   }
 
@@ -200,6 +236,7 @@ class HomePage extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
+                    
                     if (_hasRole(user?.role, UserRole.admin)) ...[
                       FilledButton.icon(
                         onPressed: () => _openAdminTicketAssignment(context),
@@ -207,7 +244,23 @@ class HomePage extends StatelessWidget {
                         label: const Text('All tickets'),
                       ),
                       const SizedBox(height: 12),
+                      
+                      // --- THÊM 2 NÚT CỦA BẠN VÀO ĐÂY ---
+                      FilledButton.icon(
+                        onPressed: () => _openAdminDashboard(context),
+                        icon: const Icon(Icons.dashboard),
+                        label: const Text('View Dashboard'),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: () => _openCategories(context),
+                        icon: const Icon(Icons.category),
+                        label: const Text('Manage Categories'),
+                      ),
+                      const SizedBox(height: 12),
+                      // ----------------------------------
                     ],
+                    
                     if (_canManageUsers(user?.role)) ...[
                       FilledButton.icon(
                         onPressed: () {
