@@ -620,22 +620,25 @@ class _TicketDetailBody extends StatelessWidget {
                   },
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            initialValue: categoryId ?? 0,
+          DropdownButtonFormField<int?>(
+            initialValue: _resolveValidCategoryId(categoryId),
             decoration: const InputDecoration(
               labelText: 'Category',
               border: OutlineInputBorder(),
             ),
-            items: const [
-              DropdownMenuItem(value: 0, child: Text('None')),
-              DropdownMenuItem(value: 1, child: Text('Network Issue')),
-              DropdownMenuItem(value: 2, child: Text('Hardware Issue')),
-              DropdownMenuItem(value: 3, child: Text('Software Issue')),
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('None')),
+              ..._categoryOptions.map(
+                (c) => DropdownMenuItem<int?>(
+                  value: c.id,
+                  child: Text(c.label),
+                ),
+              ),
             ],
             onChanged: !isEditing || viewModel.isLoading
                 ? null
                 : (value) {
-                    onCategoryChanged(value == 0 ? null : value);
+                    onCategoryChanged(value);
                   },
           ),
           const SizedBox(height: 12),
@@ -762,6 +765,38 @@ final List<String> _knownIssueTypes = IssueType.values
 final List<String> _knownPriorities = PriorityLevel.values
     .map((priority) => priority.value)
     .toList(growable: false);
+
+/// Represents a category option for dropdown display.
+class _CategoryOption {
+  const _CategoryOption({required this.id, required this.label});
+  final int id;
+  final String label;
+}
+
+/// Category dropdown items - must match exactly with create_ticket_page.dart
+final List<_CategoryOption> _categoryOptions = [
+  _CategoryOption(id: 4, label: 'General Support'),
+  _CategoryOption(id: 1, label: 'Network Issue'),
+  _CategoryOption(id: 2, label: 'Hardware Issue'),
+  _CategoryOption(id: 3, label: 'Software Issue'),
+];
+
+/// Validates that categoryId exists in dropdown options.
+/// Returns a valid category ID or null (for "None").
+int? _resolveValidCategoryId(int? categoryId) {
+  if (categoryId == null) return null;
+  if (_categoryOptions.any((c) => c.id == categoryId)) return categoryId;
+  // categoryId not found - could be deleted/inactive/invalid
+  return null;
+}
+
+final List<String> _knownStatuses = TicketStatus.values
+    .map((status) => status.value)
+    .toList(growable: false);
+
+String _statusLabel(String status) {
+  return TicketStatus.fromValue(status).value;
+}
 
 Future<ITicketService> _createTicketService() async {
   return TicketServiceImpl(
