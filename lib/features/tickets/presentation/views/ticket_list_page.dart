@@ -13,10 +13,16 @@ import 'create_ticket_page.dart';
 import 'ticket_detail_page.dart';
 
 class TicketListPage extends StatefulWidget {
-  const TicketListPage({super.key, this.requesterId, this.assigneeId});
+  const TicketListPage({
+    super.key,
+    this.requesterId,
+    this.assigneeId,
+    this.viewModel,
+  });
 
   final int? requesterId;
   final int? assigneeId;
+  final TicketListViewModel? viewModel;
 
   @override
   State<TicketListPage> createState() => _TicketListPageState();
@@ -32,7 +38,8 @@ class _TicketListPageState extends State<TicketListPage> {
   }
 
   Future<TicketListViewModel> _createViewModel() async {
-    return TicketListViewModel(await _createTicketService());
+    return widget.viewModel ??
+        TicketListViewModel(await _createTicketService());
   }
 
   Future<void> _loadTickets(TicketListViewModel viewModel) {
