@@ -10,9 +10,10 @@ import '../../data/repositories/ticket_repository_impl.dart';
 import '../viewmodels/create_ticket_view_model.dart';
 
 class CreateTicketPage extends StatefulWidget {
-  const CreateTicketPage({super.key, this.requesterId});
+  const CreateTicketPage({super.key, this.requesterId, this.viewModel});
 
   final int? requesterId;
+  final CreateTicketViewModel? viewModel;
 
   @override
   State<CreateTicketPage> createState() => _CreateTicketPageState();
@@ -45,7 +46,8 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
   }
 
   Future<CreateTicketViewModel> _createViewModel() async {
-    return CreateTicketViewModel(await _createTicketService());
+    return widget.viewModel ??
+        CreateTicketViewModel(await _createTicketService());
   }
 
   Future<void> _pickFile() async {
