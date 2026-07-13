@@ -8,6 +8,7 @@ import '../../application/services/ticket_service_impl.dart';
 import '../../data/mappers/ticket_mapper.dart';
 import '../../data/repositories/ticket_repository_impl.dart';
 import '../../domain/entities/ticket.dart';
+import '../models/ticket_list_filter.dart';
 import '../viewmodels/ticket_list_view_model.dart';
 import 'create_ticket_page.dart';
 import 'ticket_detail_page.dart';
@@ -157,6 +158,8 @@ class _TicketListBodyState extends State<_TicketListBody> {
 
   int _currentPage = 0;
   _TicketSortOption _sortOption = _TicketSortOption.newestFirst;
+  String _statusFilter = '';
+  String _priorityFilter = '';
 
   @override
   void initState() {
@@ -216,6 +219,8 @@ class _TicketListBodyState extends State<_TicketListBody> {
       _TicketListControls(
         controller: _searchController,
         sortOption: _sortOption,
+        statusFilter: _statusFilter,
+        priorityFilter: _priorityFilter,
         resultCount: tickets.length,
         totalCount: viewModel.tickets.length,
         onSearchChanged: (_) => _resetPage(),
@@ -235,6 +240,27 @@ class _TicketListBodyState extends State<_TicketListBody> {
             _currentPage = 0;
           });
         },
+        onStatusFilterChanged: (value) {
+          setState(() {
+            _statusFilter = value ?? '';
+            _currentPage = 0;
+          });
+        },
+        onPriorityFilterChanged: (value) {
+          setState(() {
+            _priorityFilter = value ?? '';
+            _currentPage = 0;
+          });
+        },
+        onClearFilters: _statusFilter.isEmpty && _priorityFilter.isEmpty
+            ? null
+            : () {
+                setState(() {
+                  _statusFilter = '';
+                  _priorityFilter = '';
+                  _currentPage = 0;
+                });
+              },
       ),
       const SizedBox(height: 12),
     ];
@@ -243,7 +269,9 @@ class _TicketListBodyState extends State<_TicketListBody> {
       children.add(
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 32),
-          child: Center(child: Text('No tickets match your search.')),
+          child: Center(
+            child: Text('No tickets match your search or filters.'),
+          ),
         ),
       );
     } else {
@@ -287,20 +315,11 @@ class _TicketListBodyState extends State<_TicketListBody> {
   }
 
   List<Ticket> _filterTickets(List<Ticket> tickets) {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) {
-      return tickets;
-    }
-
-    return tickets.where((ticket) {
-      final id = ticket.id?.toString() ?? '';
-      return id.contains(query) ||
-          ticket.title.toLowerCase().contains(query) ||
-          ticket.description.toLowerCase().contains(query) ||
-          ticket.status.toLowerCase().contains(query) ||
-          ticket.priority.toLowerCase().contains(query) ||
-          ticket.issueType.toLowerCase().contains(query);
-    }).toList();
+    return TicketListFilter(
+      query: _searchController.text,
+      status: _statusFilter,
+      priority: _priorityFilter,
+    ).apply(tickets);
   }
 
   List<Ticket> _sortTickets(List<Ticket> tickets) {
@@ -396,20 +415,30 @@ class _TicketListControls extends StatelessWidget {
   const _TicketListControls({
     required this.controller,
     required this.sortOption,
+    required this.statusFilter,
+    required this.priorityFilter,
     required this.resultCount,
     required this.totalCount,
     required this.onSearchChanged,
     required this.onClearSearch,
     required this.onSortChanged,
+    required this.onStatusFilterChanged,
+    required this.onPriorityFilterChanged,
+    required this.onClearFilters,
   });
 
   final TextEditingController controller;
   final _TicketSortOption sortOption;
+  final String statusFilter;
+  final String priorityFilter;
   final int resultCount;
   final int totalCount;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback? onClearSearch;
   final ValueChanged<_TicketSortOption?> onSortChanged;
+  final ValueChanged<String?> onStatusFilterChanged;
+  final ValueChanged<String?> onPriorityFilterChanged;
+  final VoidCallback? onClearFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -432,10 +461,67 @@ class _TicketListControls extends StatelessWidget {
           onChanged: onSearchChanged,
         ),
         const SizedBox(height: 12),
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(
+            SizedBox(
+              width: 210,
+              child: DropdownButtonFormField<String>(
+                key: const Key('ticket-status-filter'),
+                isExpanded: true,
+                initialValue: statusFilter,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  prefixIcon: Icon(Icons.filter_alt),
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('All statuses'),
+                  ),
+                  ...TicketStatus.values.map(
+                    (status) => DropdownMenuItem(
+                      value: status.value,
+                      child: Text(status.value),
+                    ),
+                  ),
+                ],
+                onChanged: onStatusFilterChanged,
+              ),
+            ),
+            SizedBox(
+              width: 210,
+              child: DropdownButtonFormField<String>(
+                key: const Key('ticket-priority-filter'),
+                isExpanded: true,
+                initialValue: priorityFilter,
+                decoration: const InputDecoration(
+                  labelText: 'Priority',
+                  prefixIcon: Icon(Icons.flag_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('All priorities'),
+                  ),
+                  ...PriorityLevel.values.map(
+                    (priority) => DropdownMenuItem(
+                      value: priority.value,
+                      child: Text(priority.value),
+                    ),
+                  ),
+                ],
+                onChanged: onPriorityFilterChanged,
+              ),
+            ),
+            SizedBox(
+              width: 230,
               child: DropdownButtonFormField<_TicketSortOption>(
+                isExpanded: true,
                 initialValue: sortOption,
                 decoration: const InputDecoration(
                   labelText: 'Sort by',
@@ -451,8 +537,13 @@ class _TicketListControls extends StatelessWidget {
                 onChanged: onSortChanged,
               ),
             ),
-            const SizedBox(width: 12),
-            Text('$resultCount/$totalCount'),
+            Chip(label: Text('$resultCount/$totalCount tickets')),
+            if (onClearFilters != null)
+              TextButton.icon(
+                onPressed: onClearFilters,
+                icon: const Icon(Icons.filter_alt_off),
+                label: const Text('Clear filters'),
+              ),
           ],
         ),
       ],
