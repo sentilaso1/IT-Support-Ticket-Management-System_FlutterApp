@@ -57,6 +57,19 @@ import '../../features/user_management/domain/repositories/i_user_management_rep
 import '../../features/user_management/presentation/viewmodels/create_user_view_model.dart';
 import '../../features/user_management/presentation/viewmodels/update_user_view_model.dart';
 import '../../features/user_management/presentation/viewmodels/user_list_view_model.dart';
+import '../../features/reports/data/datasources/i_report_local_data_source.dart';
+import '../../features/reports/data/datasources/report_local_data_source_impl.dart';
+import '../../features/reports/domain/repositories/i_report_repository.dart';
+import '../../features/reports/data/repositories/report_repository_impl.dart';
+import '../../features/reports/application/services/i_report_service.dart';
+import '../../features/reports/application/services/report_service_impl.dart';
+import '../../features/reports/presentation/viewmodels/admin_dashboard_view_model.dart';
+import '../../features/categories/data/datasources/category_local_data_source.dart';
+import '../../features/categories/domain/repositories/i_category_repository.dart';
+import '../../features/categories/data/repositories/category_repository_impl.dart';
+import '../../features/categories/application/services/i_category_service.dart';
+import '../../features/categories/application/services/category_service_impl.dart';
+import '../../features/categories/presentation/viewmodels/category_view_model.dart';
 import '../database/app_database.dart';
 
 class ServiceLocator {
@@ -84,6 +97,13 @@ class ServiceLocator {
   static IAttachmentLocalDataSource? _attachmentLocalDataSource;
   static IAttachmentRepository? _attachmentRepository;
   static IAttachmentService? _attachmentService;
+  static IReportLocalDataSource? _reportLocalDataSource;
+  static IReportRepository? _reportRepository;
+  static IReportService? _reportService;
+  static CategoryLocalDataSource? _categoryLocalDataSource;
+  static ICategoryRepository? _categoryRepository;
+  static ICategoryService? _categoryService;
+  
 
   static Future<Database> get database {
     return AppDatabase.instance;
@@ -228,5 +248,56 @@ class ServiceLocator {
 
   static Future<AttachmentViewModel> attachmentViewModelFactory() async {
     return AttachmentViewModel(await attachmentService);
+  }
+  // --- Khởi tạo Data Source ---
+  static Future<IReportLocalDataSource> get reportLocalDataSource async {
+    return _reportLocalDataSource ??= ReportLocalDataSourceImpl(
+      database: await database,
+    );
+  }
+
+  // --- Khởi tạo Repository ---
+  static Future<IReportRepository> get reportRepository async {
+    // Lưu ý: Chúng ta dùng extension cho Mapper nên không cần truyền Mapper vào đây
+    return _reportRepository ??= ReportRepositoryImpl(
+      localDataSource: await reportLocalDataSource,
+    );
+  }
+
+  // --- Khởi tạo Service ---
+  static Future<IReportService> get reportService async {
+    return _reportService ??= ReportServiceImpl(
+      repository: await reportRepository,
+    );
+  }
+
+  // --- Khởi tạo ViewModel (Dùng kiểu Factory trả về instance mới) ---
+  static Future<AdminDashboardViewModel> get adminDashboardViewModel async {
+    return AdminDashboardViewModel(
+      reportService: await reportService,
+    );
+  }
+  // --- Khởi tạo CategoryViewModel ---
+  static Future<CategoryViewModel> get categoryViewModel async {
+    return CategoryViewModel(
+      categoryService: await categoryService,
+    );
+  }
+  static Future<CategoryLocalDataSource> get categoryLocalDataSource async {
+    return _categoryLocalDataSource ??= CategoryLocalDataSource(
+      database: await database,
+    );
+  }
+
+  static Future<ICategoryRepository> get categoryRepository async {
+    return _categoryRepository ??= CategoryRepositoryImpl(
+      localDataSource: await categoryLocalDataSource,
+    );
+  }
+
+  static Future<ICategoryService> get categoryService async {
+    return _categoryService ??= CategoryServiceImpl(
+      repository: await categoryRepository,
+    );
   }
 }
