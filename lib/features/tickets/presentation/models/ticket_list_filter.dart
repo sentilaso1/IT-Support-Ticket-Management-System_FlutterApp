@@ -36,13 +36,17 @@ class TicketListFilter {
             return true;
           }
 
-          final id = ticket.id?.toString() ?? '';
-          return id.contains(normalizedQuery) ||
-              ticket.title.toLowerCase().contains(normalizedQuery) ||
-              ticket.description.toLowerCase().contains(normalizedQuery) ||
-              ticket.status.toLowerCase().contains(normalizedQuery) ||
-              ticket.priority.toLowerCase().contains(normalizedQuery) ||
-              ticket.issueType.toLowerCase().contains(normalizedQuery);
+          final searchableValues = <String>[
+            ticket.id?.toString() ?? '',
+            ticket.title,
+            ticket.description,
+            ticket.status,
+            ticket.priority,
+            ticket.issueType,
+          ];
+          return searchableValues.any(
+            (value) => value.toLowerCase().contains(normalizedQuery),
+          );
         })
         .toList(growable: false);
   }
