@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -8,6 +8,7 @@ import '../../../../core/enums/issue_type.dart';
 import '../../../../core/enums/priority_level.dart';
 import '../../../../core/enums/ticket_status.dart';
 import '../../../../core/enums/user_role.dart';
+import '../../../../core/storage/ticket_attachment_storage.dart';
 import '../../application/services/i_ticket_service.dart';
 import '../../application/services/ticket_service_impl.dart';
 import '../../data/mappers/ticket_mapper.dart';
@@ -15,10 +16,9 @@ import '../../data/repositories/ticket_repository_impl.dart';
 import '../../domain/entities/ticket.dart';
 import '../../domain/entities/ticket_status_note.dart';
 import '../viewmodels/ticket_detail_view_model.dart';
+import '../widgets/ticket_attachment_field.dart';
 import '../../../comments/presentation/viewmodels/comment_view_model.dart';
 import '../../../comments/presentation/views/comment_section.dart';
-import '../../../attachments/presentation/viewmodels/attachment_view_model.dart';
-import '../../../attachments/presentation/views/attachment_list.dart';
 import '../../../feedback/presentation/viewmodels/feedback_view_model.dart';
 import '../../../feedback/presentation/views/feedback_page.dart';
 import '../../../feedback/domain/entities/feedback.dart' as feedback_entity;
@@ -41,29 +41,27 @@ class _TicketDetailPageState extends State<TicketDetailPage>
     with SingleTickerProviderStateMixin {
   late final Future<TicketDetailViewModel> _viewModelFuture;
   late final Future<CommentViewModel> _commentViewModelFuture;
-  late final Future<AttachmentViewModel> _attachmentViewModelFuture;
   late final Future<FeedbackViewModel> _feedbackViewModelFuture;
   late final Future<_TicketViewer> _viewerFuture;
   late final TabController _tabController;
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _attachmentController = TextEditingController();
-
   String _issueType = IssueType.defaultValue;
   String _priority = PriorityLevel.defaultValue;
   int? _categoryId;
-  String? _selectedFileName;
+  String? _attachmentPath;
+  String? _originalAttachmentPath;
+  bool _ownsAttachment = false;
   bool _hasLoadedTicket = false;
   bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _viewModelFuture = _createViewModel();
     _commentViewModelFuture = _createCommentViewModel();
-    _attachmentViewModelFuture = _createAttachmentViewModel();
     _feedbackViewModelFuture = _createFeedbackViewModel();
     _viewerFuture = _loadViewer();
   }
@@ -72,7 +70,9 @@ class _TicketDetailPageState extends State<TicketDetailPage>
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _attachmentController.dispose();
+    if (_ownsAttachment) {
+      unawaited(TicketAttachmentStorage.deleteManagedFile(_attachmentPath));
+    }
     _tabController.dispose();
     super.dispose();
   }
@@ -89,10 +89,6 @@ class _TicketDetailPageState extends State<TicketDetailPage>
 
   Future<CommentViewModel> _createCommentViewModel() async {
     return ServiceLocator.commentViewModelFactory();
-  }
-
-  Future<AttachmentViewModel> _createAttachmentViewModel() async {
-    return ServiceLocator.attachmentViewModelFactory();
   }
 
   Future<FeedbackViewModel> _createFeedbackViewModel() async {
@@ -117,8 +113,9 @@ class _TicketDetailPageState extends State<TicketDetailPage>
 
     _titleController.text = ticket.title;
     _descriptionController.text = ticket.description;
-    _attachmentController.text = ticket.attachmentUrl ?? '';
-    _selectedFileName = ticket.attachmentUrl?.split('/').last;
+    _attachmentPath = ticket.attachmentUrl;
+    _originalAttachmentPath = ticket.attachmentUrl;
+    _ownsAttachment = false;
     _issueType = _knownIssueTypes.contains(ticket.issueType)
         ? ticket.issueType
         : IssueType.defaultValue;
@@ -137,43 +134,38 @@ class _TicketDetailPageState extends State<TicketDetailPage>
   }
 
   Future<void> _pickFile() async {
-    final attachmentPath = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        final controller = TextEditingController(
-          text: _attachmentController.text,
-        );
-        return AlertDialog(
-          title: const Text('Attachment path'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Image file path or URL',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-              child: const Text('Use attachment'),
-            ),
-          ],
-        );
-      },
-    );
+    try {
+      final attachmentPath = await TicketAttachmentStorage.pickAndStoreImage();
+      if (attachmentPath == null) return;
+      if (!mounted) {
+        await TicketAttachmentStorage.deleteManagedFile(attachmentPath);
+        return;
+      }
 
-    if (attachmentPath == null) {
-      return;
+      if (_ownsAttachment) {
+        await TicketAttachmentStorage.deleteManagedFile(_attachmentPath);
+      }
+      if (!mounted) return;
+      setState(() {
+        _attachmentPath = attachmentPath;
+        _ownsAttachment = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not select image: $error')));
     }
+  }
 
+  Future<void> _clearAttachment() async {
+    if (_ownsAttachment) {
+      await TicketAttachmentStorage.deleteManagedFile(_attachmentPath);
+    }
+    if (!mounted) return;
     setState(() {
-      _selectedFileName = _fileNameFromPath(attachmentPath);
-      _attachmentController.text = attachmentPath;
+      _attachmentPath = null;
+      _ownsAttachment = false;
     });
   }
 
@@ -186,9 +178,7 @@ class _TicketDetailPageState extends State<TicketDetailPage>
         status: ticket.status,
         priority: _priority,
         issueType: _issueType,
-        attachmentUrl: _attachmentController.text.isEmpty
-            ? null
-            : _attachmentController.text,
+        attachmentUrl: _attachmentPath,
         requestedId: ticket.requestedId,
         assignedId: ticket.assignedId,
         categoryId: _categoryId,
@@ -206,6 +196,12 @@ class _TicketDetailPageState extends State<TicketDetailPage>
       return;
     }
 
+    if (_attachmentPath != _originalAttachmentPath) {
+      await TicketAttachmentStorage.deleteManagedFile(_originalAttachmentPath);
+    }
+    if (!mounted) return;
+    _ownsAttachment = false;
+    _originalAttachmentPath = _attachmentPath;
     _hasLoadedTicket = false;
     final updatedTicket = viewModel.ticket;
     if (updatedTicket != null) {
@@ -295,7 +291,6 @@ class _TicketDetailPageState extends State<TicketDetailPage>
       future: Future.wait([
         _viewModelFuture,
         _commentViewModelFuture,
-        _attachmentViewModelFuture,
         _feedbackViewModelFuture,
         _viewerFuture,
       ]),
@@ -308,9 +303,8 @@ class _TicketDetailPageState extends State<TicketDetailPage>
 
         final viewModel = snapshot.data![0] as TicketDetailViewModel;
         final commentVm = snapshot.data![1] as CommentViewModel;
-        final attachmentVm = snapshot.data![2] as AttachmentViewModel;
-        final feedbackVm = snapshot.data![3] as FeedbackViewModel;
-        final viewer = snapshot.data![4] as _TicketViewer;
+        final feedbackVm = snapshot.data![2] as FeedbackViewModel;
+        final viewer = snapshot.data![3] as _TicketViewer;
 
         return AnimatedBuilder(
           animation: viewModel,
@@ -393,7 +387,6 @@ class _TicketDetailPageState extends State<TicketDetailPage>
                   tabs: const [
                     Tab(text: 'Details'),
                     Tab(text: 'Comments'),
-                    Tab(text: 'Attachments'),
                   ],
                 ),
               ),
@@ -404,12 +397,11 @@ class _TicketDetailPageState extends State<TicketDetailPage>
                 statusNotes: viewModel.statusNotes,
                 titleController: _titleController,
                 descriptionController: _descriptionController,
-                attachmentController: _attachmentController,
+                attachmentPath: _attachmentPath,
                 issueType: _issueType,
                 priority: _priority,
                 categoryId: _categoryId,
                 tabController: _tabController,
-                selectedFileName: _selectedFileName,
                 onIssueTypeChanged: (value) {
                   setState(() {
                     _issueType = value;
@@ -427,10 +419,9 @@ class _TicketDetailPageState extends State<TicketDetailPage>
                 },
                 onSave: ticket == null ? null : () => _save(viewModel, ticket),
                 onBrowseFile: _pickFile,
+                onClearAttachment: _clearAttachment,
                 commentVm: commentVm,
-                attachmentVm: attachmentVm,
                 currentUserId: viewer.id,
-                canDeleteAnyAttachment: viewer.role == UserRole.admin,
                 isEditing: _isEditing && canEdit,
                 isClosed: isClosed || isCancelled,
                 feedback: feedbackVm.feedback,
@@ -457,21 +448,19 @@ class _TicketDetailBody extends StatelessWidget {
     required this.statusNotes,
     required this.titleController,
     required this.descriptionController,
-    required this.attachmentController,
+    required this.attachmentPath,
     required this.issueType,
     required this.priority,
     required this.categoryId,
     required this.tabController,
-    required this.selectedFileName,
     required this.onIssueTypeChanged,
     required this.onPriorityChanged,
     required this.onCategoryChanged,
     required this.onSave,
     required this.onBrowseFile,
+    required this.onClearAttachment,
     required this.commentVm,
-    required this.attachmentVm,
     required this.currentUserId,
-    required this.canDeleteAnyAttachment,
     required this.isEditing,
     required this.isClosed,
     required this.feedback,
@@ -485,21 +474,19 @@ class _TicketDetailBody extends StatelessWidget {
   final List<TicketStatusNote> statusNotes;
   final TextEditingController titleController;
   final TextEditingController descriptionController;
-  final TextEditingController attachmentController;
+  final String? attachmentPath;
   final String issueType;
   final String priority;
   final int? categoryId;
   final TabController tabController;
-  final String? selectedFileName;
   final ValueChanged<String> onIssueTypeChanged;
   final ValueChanged<String> onPriorityChanged;
   final ValueChanged<int?> onCategoryChanged;
   final VoidCallback? onSave;
   final VoidCallback onBrowseFile;
+  final VoidCallback onClearAttachment;
   final CommentViewModel commentVm;
-  final AttachmentViewModel attachmentVm;
   final int currentUserId;
-  final bool canDeleteAnyAttachment;
   final bool isEditing;
   final bool isClosed;
   final feedback_entity.Feedback? feedback;
@@ -537,17 +524,6 @@ class _TicketDetailBody extends StatelessWidget {
           currentUserId: currentUserId,
           viewModel: commentVm,
           isLocked: isClosed,
-        ),
-        SafeArea(
-          child: SingleChildScrollView(
-            child: AttachmentList(
-              ticketId: ticketId,
-              currentUserId: currentUserId,
-              viewModel: attachmentVm,
-              isLocked: isClosed,
-              canDeleteAny: canDeleteAnyAttachment,
-            ),
-          ),
         ),
       ],
     );
@@ -660,34 +636,13 @@ class _TicketDetailBody extends StatelessWidget {
                   },
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: attachmentController,
-                  enabled: false,
-                  decoration: InputDecoration(
-                    labelText: 'Attachment',
-                    border: const OutlineInputBorder(),
-                    hintText: selectedFileName ?? 'No file selected',
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: !isEditing || viewModel.isLoading
-                    ? null
-                    : onBrowseFile,
-                child: const Text('Browse'),
-              ),
-            ],
+          TicketAttachmentField(
+            filePath: attachmentPath,
+            isEditing: isEditing,
+            isBusy: viewModel.isLoading,
+            onPick: onBrowseFile,
+            onClear: onClearAttachment,
           ),
-          if (attachmentController.text.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildAttachmentPreview(attachmentController.text),
-          ],
           if (viewModel.errorMessage != null) ...[
             const SizedBox(height: 12),
             Text(viewModel.errorMessage!, style: TextStyle(color: Colors.red)),
@@ -717,27 +672,6 @@ class _TicketDetailBody extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildAttachmentPreview(String path) {
-    final file = File(path);
-    if (!file.existsSync()) {
-      return const Text('The selected image file is no longer available.');
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.file(
-        file,
-        height: 180,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const SizedBox(
-          height: 180,
-          child: Center(child: Text('Unable to preview the selected image.')),
-        ),
       ),
     );
   }
@@ -1068,13 +1002,4 @@ String _formatDateTime(DateTime value) {
   return '${_formatDate(value)} '
       '${value.hour.toString().padLeft(2, '0')}:'
       '${value.minute.toString().padLeft(2, '0')}';
-}
-
-String? _fileNameFromPath(String path) {
-  if (path.isEmpty) {
-    return null;
-  }
-
-  final normalizedPath = path.replaceAll('\\', '/');
-  return normalizedPath.split('/').last;
 }

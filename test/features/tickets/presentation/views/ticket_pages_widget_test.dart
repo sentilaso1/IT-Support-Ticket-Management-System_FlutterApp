@@ -28,7 +28,7 @@ void main() {
       expect(find.text('Issue type'), findsOneWidget);
       expect(find.text('Priority'), findsOneWidget);
       expect(find.text('Category'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Browse'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Upload image'), findsOneWidget);
     });
 
     testWidgets('submits the form and returns success to the caller', (

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/di/service_locator.dart';
 import '../features/auth/presentation/viewmodels/login_view_model.dart';
+import '../features/auth/presentation/views/change_password_page.dart';
+import '../features/auth/presentation/views/home_page.dart';
 import '../features/auth/presentation/views/login_page.dart';
 
 class App extends StatefulWidget {
@@ -27,15 +29,12 @@ class _AppState extends State<App> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            ),
+            home: Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
 
         final loginViewModel = snapshot.data!;
+        final currentUser = loginViewModel.currentUser;
         return MaterialApp(
           title: 'IT Support Ticket Management',
           debugShowCheckedModeBanner: false,
@@ -43,7 +42,11 @@ class _AppState extends State<App> {
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
             useMaterial3: true,
           ),
-          home: LoginPage(viewModel: loginViewModel),
+          home: currentUser == null
+              ? LoginPage(viewModel: loginViewModel)
+              : currentUser.mustChangePassword
+              ? ChangePasswordPage(viewModel: loginViewModel)
+              : HomePage(viewModel: loginViewModel),
         );
       },
     );

@@ -16,8 +16,6 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
 
   final Database _database;
 
-  int? _currentUserId;
-
   @override
   Future<LoginResponseDto> login(LoginRequestDto request) async {
     final login = request.username.trim();
@@ -87,24 +85,32 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
 
   @override
   Future<void> logout() async {
-    _currentUserId = null;
+    await _database.delete(AppDatabase.authSessionTable);
   }
 
   @override
   Future<UserDto?> getCurrentUser() async {
-    final currentUserId = _currentUserId;
-    if (currentUserId == null) {
+    final sessionRows = await _database.query(
+      AppDatabase.authSessionTable,
+      columns: ['userId'],
+      where: 'id = ?',
+      whereArgs: [1],
+      limit: 1,
+    );
+    if (sessionRows.isEmpty) {
       return null;
     }
 
+    final currentUserId = sessionRows.first['userId'] as int;
     final rows = await _database.query(
       AppDatabase.usersTable,
-      where: 'id = ?',
+      where: 'id = ? AND isActive = 1',
       whereArgs: [currentUserId],
       limit: 1,
     );
 
     if (rows.isEmpty) {
+      await logout();
       return null;
     }
 
@@ -113,7 +119,11 @@ class AuthLocalDataSourceImpl implements IAuthLocalDataSource {
 
   @override
   Future<void> saveCurrentUser(UserDto user) async {
-    _currentUserId = user.id;
+    await _database.insert(AppDatabase.authSessionTable, {
+      'id': 1,
+      'userId': user.id,
+      'signedInAt': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<bool> _recordFailedLogin({
