@@ -166,7 +166,15 @@ class ServiceLocator {
   }
 
   static Future<LoginViewModel> get loginViewModel async {
-    return _loginViewModel ??= LoginViewModel(await authService);
+    final existingViewModel = _loginViewModel;
+    if (existingViewModel != null) {
+      return existingViewModel;
+    }
+
+    final viewModel = LoginViewModel(await authService);
+    await viewModel.restoreSession();
+    _loginViewModel = viewModel;
+    return viewModel;
   }
 
   static Future<IUserLocalDataSource> get userLocalDataSource async {

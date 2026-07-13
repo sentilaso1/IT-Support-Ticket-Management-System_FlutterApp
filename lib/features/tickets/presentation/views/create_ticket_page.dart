@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../../../core/storage/ticket_attachment_storage.dart';
 import '../../../../core/enums/issue_type.dart';
 import '../../../../core/enums/priority_level.dart';
 import '../../../../core/di/service_locator.dart';
@@ -8,6 +11,7 @@ import '../../application/services/ticket_service_impl.dart';
 import '../../data/mappers/ticket_mapper.dart';
 import '../../data/repositories/ticket_repository_impl.dart';
 import '../viewmodels/create_ticket_view_model.dart';
+import '../widgets/ticket_attachment_field.dart';
 
 class CreateTicketPage extends StatefulWidget {
   const CreateTicketPage({super.key, this.requesterId, this.viewModel});
@@ -24,12 +28,11 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _attachmentController = TextEditingController();
-
   String _issueType = IssueType.defaultValue;
   String _priority = PriorityLevel.defaultValue;
   int? _categoryId = 4;
-  String? _selectedFileName;
+  String? _attachmentPath;
+  bool _ownsAttachment = false;
 
   @override
   void initState() {
@@ -41,7 +44,9 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _attachmentController.dispose();
+    if (_ownsAttachment) {
+      unawaited(TicketAttachmentStorage.deleteManagedFile(_attachmentPath));
+    }
     super.dispose();
   }
 
@@ -57,43 +62,38 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
   }
 
   Future<void> _pickFile() async {
-    final attachmentPath = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        final controller = TextEditingController(
-          text: _attachmentController.text,
-        );
-        return AlertDialog(
-          title: const Text('Attachment path'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Image file path or URL',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-              child: const Text('Use attachment'),
-            ),
-          ],
-        );
-      },
-    );
+    try {
+      final attachmentPath = await TicketAttachmentStorage.pickAndStoreImage();
+      if (attachmentPath == null) return;
+      if (!mounted) {
+        await TicketAttachmentStorage.deleteManagedFile(attachmentPath);
+        return;
+      }
 
-    if (attachmentPath == null) {
-      return;
+      if (_ownsAttachment) {
+        await TicketAttachmentStorage.deleteManagedFile(_attachmentPath);
+      }
+      if (!mounted) return;
+      setState(() {
+        _attachmentPath = attachmentPath;
+        _ownsAttachment = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not select image: $error')));
     }
+  }
 
+  Future<void> _clearAttachment() async {
+    if (_ownsAttachment) {
+      await TicketAttachmentStorage.deleteManagedFile(_attachmentPath);
+    }
+    if (!mounted) return;
     setState(() {
-      _selectedFileName = _fileNameFromPath(attachmentPath);
-      _attachmentController.text = attachmentPath;
+      _attachmentPath = null;
+      _ownsAttachment = false;
     });
   }
 
@@ -105,13 +105,14 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
       priority: _priority,
       requesterId: widget.requesterId,
       categoryId: _categoryId,
-      attachmentUrl: _attachmentController.text,
+      attachmentUrl: _attachmentPath,
     );
 
     if (!mounted || !success) {
       return;
     }
 
+    _ownsAttachment = false;
     Navigator.pop(context, true);
   }
 
@@ -248,28 +249,12 @@ class _CreateTicketPageState extends State<CreateTicketPage> {
                             },
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _attachmentController,
-                            enabled: false,
-                            decoration: InputDecoration(
-                              labelText: 'Attachment',
-                              border: const OutlineInputBorder(),
-                              hintText:
-                                  _selectedFileName ?? 'No image selected',
-                              filled: true,
-                              fillColor: Colors.grey[100],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton.tonal(
-                          onPressed: viewModel.isLoading ? null : _pickFile,
-                          child: const Text('Browse'),
-                        ),
-                      ],
+                    TicketAttachmentField(
+                      filePath: _attachmentPath,
+                      isEditing: true,
+                      isBusy: viewModel.isLoading,
+                      onPick: _pickFile,
+                      onClear: _clearAttachment,
                     ),
                     if (viewModel.errorMessage != null) ...[
                       const SizedBox(height: 12),
@@ -312,13 +297,4 @@ Future<ITicketService> _createTicketService() async {
       mapper: const TicketMapper(),
     ),
   );
-}
-
-String? _fileNameFromPath(String path) {
-  if (path.isEmpty) {
-    return null;
-  }
-
-  final normalizedPath = path.replaceAll('\\', '/');
-  return normalizedPath.split('/').last;
 }

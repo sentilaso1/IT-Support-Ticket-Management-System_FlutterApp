@@ -10,9 +10,10 @@ class AppDatabase {
   AppDatabase._();
 
   static const String databaseName = 'it_support.db';
-  static const int databaseVersion = 11;
+  static const int databaseVersion = 12;
 
   static const String usersTable = 'users';
+  static const String authSessionTable = 'auth_session';
   static const String departmentsTable = 'departments';
   static const String categoriesTable = 'categories';
   static const String prioritiesTable = 'priorities';
@@ -151,6 +152,15 @@ class AppDatabase {
         createdAt TEXT NOT NULL,
         updatedAt TEXT,
         FOREIGN KEY (departmentId) REFERENCES $departmentsTable(id)
+      )
+    ''');
+
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS $authSessionTable (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        userId INTEGER NOT NULL,
+        signedInAt TEXT NOT NULL,
+        FOREIGN KEY (userId) REFERENCES $usersTable(id) ON DELETE CASCADE
       )
     ''');
 
@@ -947,6 +957,7 @@ class AppDatabase {
     batch.execute('DROP TABLE IF EXISTS $feedbackTable');
     batch.execute('DROP TABLE IF EXISTS $ticketStatusHistoriesTable');
     batch.execute('DROP TABLE IF EXISTS $ticketAttachmentsTable');
+    batch.execute('DROP TABLE IF EXISTS $authSessionTable');
     batch.execute('DROP TABLE IF EXISTS $ticketCommentsTable');
     batch.execute('DROP TABLE IF EXISTS $progressUpdatesTable');
     batch.execute('DROP TABLE IF EXISTS $ticketAssignmentsTable');
