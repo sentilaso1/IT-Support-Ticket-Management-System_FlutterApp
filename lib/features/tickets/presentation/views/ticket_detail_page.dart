@@ -302,11 +302,16 @@ class _TicketDetailPageState extends State<TicketDetailPage>
                 : TicketStatus.fromValue(ticket.status);
             final isClosed = ticketStatus == TicketStatus.closed;
             final isCancelled = ticketStatus == TicketStatus.cancelled;
+            final isProcessing = ticketStatus == TicketStatus.processing;
             final isRequester =
                 ticket?.createdByUserId == viewer.id ||
                 ticket?.requestedId == viewer.id;
             final canEdit =
-                ticket != null && isRequester && !isClosed && !isCancelled;
+                ticket != null &&
+                isRequester &&
+                !isProcessing &&
+                !isClosed &&
+                !isCancelled;
             final canGiveFeedback = ticket != null && isRequester && isClosed;
             final canCancel =
                 ticket != null &&
