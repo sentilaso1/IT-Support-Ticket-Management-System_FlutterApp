@@ -111,6 +111,7 @@ class TicketServiceImpl implements ITicketService {
     required int ticketId,
     required String status,
     int? changedByUserId,
+    String? changedByRole,
     String? note,
     String? solutionSummary,
   }) {
@@ -126,6 +127,7 @@ class TicketServiceImpl implements ITicketService {
       ticketId: ticketId,
       status: normalizedStatus,
       changedByUserId: changedByUserId,
+      changedByRole: changedByRole?.trim(),
       note: _emptyToNull(note),
       solutionSummary: _emptyToNull(solutionSummary),
     );

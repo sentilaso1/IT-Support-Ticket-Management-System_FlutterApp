@@ -13,9 +13,7 @@ class AssignmentServiceImpl implements IAssignmentService {
   static const Map<TicketStatus, Set<TicketStatus>> _staffTransitions = {
     TicketStatus.submitted: {TicketStatus.assigned},
     TicketStatus.assigned: {TicketStatus.processing, TicketStatus.resolved},
-    TicketStatus.processing: {TicketStatus.pending, TicketStatus.resolved},
-    TicketStatus.pending: {TicketStatus.processing},
-    TicketStatus.resolved: {TicketStatus.closed},
+    TicketStatus.processing: {TicketStatus.resolved},
   };
 
   @override

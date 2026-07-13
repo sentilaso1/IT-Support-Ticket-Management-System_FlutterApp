@@ -93,6 +93,19 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    testWidgets('processing can only move to resolved', (tester) async {
+      final service = _StaffService(
+        assignment: _assignment(status: 'Processing'),
+      );
+
+      await tester.pumpWidget(_progressApp(service));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Resolved'), findsOneWidget);
+      expect(find.text('Pending'), findsNothing);
+      expect(find.text('Closed'), findsNothing);
+    });
+
     testWidgets('submits the selected status and trimmed progress note', (
       tester,
     ) async {

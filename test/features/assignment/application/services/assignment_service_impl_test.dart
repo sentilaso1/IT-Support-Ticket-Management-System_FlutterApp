@@ -55,9 +55,9 @@ void main() {
       expect(repository.updatedStatus, 'Processing');
     });
 
-    test('rejects a transition outside the SRS staff workflow', () async {
+    test('rejects the removed pending transition', () async {
       final repository = _FakeAssignmentRepository(
-        assignment: _assignment(status: 'Pending'),
+        assignment: _assignment(status: 'Processing'),
       );
       final service = AssignmentServiceImpl(repository);
 
@@ -65,7 +65,7 @@ void main() {
         () => service.updateTicketStatus(
           ticketId: 10,
           staffId: 7,
-          status: 'Resolved',
+          status: 'Pending',
         ),
         throwsException,
       );

@@ -21,9 +21,7 @@ class _UpdateProgressPageState extends State<UpdateProgressPage> {
   static const Map<TicketStatus, List<TicketStatus>> _staffTransitions = {
     TicketStatus.submitted: [TicketStatus.assigned],
     TicketStatus.assigned: [TicketStatus.processing, TicketStatus.resolved],
-    TicketStatus.processing: [TicketStatus.pending, TicketStatus.resolved],
-    TicketStatus.pending: [TicketStatus.processing],
-    TicketStatus.resolved: [TicketStatus.closed],
+    TicketStatus.processing: [TicketStatus.resolved],
   };
 
   @override
