@@ -60,6 +60,7 @@ class TicketDetailViewModel extends ChangeNotifier {
     required int ticketId,
     required String status,
     int? changedByUserId,
+    String? changedByRole,
     String? note,
     String? solutionSummary,
   }) async {
@@ -72,6 +73,7 @@ class TicketDetailViewModel extends ChangeNotifier {
         ticketId: ticketId,
         status: status,
         changedByUserId: changedByUserId,
+        changedByRole: changedByRole,
         note: note,
         solutionSummary: solutionSummary,
       );

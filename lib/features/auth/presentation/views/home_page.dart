@@ -280,7 +280,6 @@ class HomePage extends StatelessWidget {
       return false;
     }
 
-    final parsedRole = UserRole.fromValue(role.trim());
-    return parsedRole == UserRole.admin || parsedRole == UserRole.superAdmin;
+    return UserRole.fromValue(role.trim()) == UserRole.admin;
   }
 }

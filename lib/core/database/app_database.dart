@@ -10,7 +10,7 @@ class AppDatabase {
   AppDatabase._();
 
   static const String databaseName = 'it_support.db';
-  static const int databaseVersion = 8;
+  static const int databaseVersion = 10;
 
   static const String usersTable = 'users';
   static const String departmentsTable = 'departments';
@@ -80,6 +80,26 @@ class AppDatabase {
     }
     if (oldVersion < 8) {
       await _migrateTicketsV7ToV8(database);
+    }
+    if (oldVersion < 9) {
+      await database.update(
+        ticketsTable,
+        {'status': TicketStatus.processing.value},
+        where: 'LOWER(status) = ?',
+        whereArgs: ['pending'],
+      );
+    }
+    if (oldVersion < 10) {
+      await database.execute('''
+        UPDATE $usersTable
+        SET fullName = 'Legacy Administrator',
+            username = 'legacy_admin_' || id,
+            email = 'legacy_admin_' || id || '@local.invalid'
+        WHERE role NOT IN ('admin', 'staff', 'user')
+      ''');
+      await database.update(usersTable, {
+        'role': 'admin',
+      }, where: "role NOT IN ('admin', 'staff', 'user')");
     }
     await _createIndexes(database);
     await seedReferenceData(databaseOverride: database);
@@ -539,19 +559,6 @@ class AppDatabase {
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
       await transaction.insert(usersTable, {
-        'fullName': 'Super Administrator',
-        'username': 'superadmin',
-        'email': 'superadmin@example.com',
-        'passwordHash': PasswordHasher.hash('Super@123'),
-        'role': 'super_admin',
-        'isActive': 1,
-        'mustChangePassword': 0,
-        'failedLoginAttempts': 0,
-        'lockedUntil': null,
-        'createdAt': now,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      await transaction.insert(usersTable, {
         'fullName': 'System Administrator',
         'username': 'admin',
         'email': 'admin@example.com',
@@ -567,8 +574,8 @@ class AppDatabase {
       await transaction.update(
         usersTable,
         {'mustChangePassword': 0, 'updatedAt': now},
-        where: 'username IN (?, ?)',
-        whereArgs: ['superadmin', 'admin'],
+        where: 'username = ?',
+        whereArgs: ['admin'],
       );
 
       await transaction.insert(usersTable, {
@@ -726,7 +733,7 @@ class AppDatabase {
               'User can sign in but the accounting shared mailbox never syncs.',
           issueType: IssueType.software.value,
           priority: PriorityLevel.medium.value,
-          status: TicketStatus.pending.value,
+          status: TicketStatus.processing.value,
           createdByUserId: employeeId,
           staffId: staffId,
           categoryId: softwareCategoryId,

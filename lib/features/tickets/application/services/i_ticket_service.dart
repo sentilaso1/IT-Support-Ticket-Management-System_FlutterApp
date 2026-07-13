@@ -27,6 +27,7 @@ abstract interface class ITicketService {
     required int ticketId,
     required String status,
     int? changedByUserId,
+    String? changedByRole,
     String? note,
     String? solutionSummary,
   });

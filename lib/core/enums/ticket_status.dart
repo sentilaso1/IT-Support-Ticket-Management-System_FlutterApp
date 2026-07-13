@@ -3,7 +3,6 @@ enum TicketStatus {
   cancelled('Cancelled'),
   assigned('Assigned'),
   processing('Processing'),
-  pending('Pending'),
   resolved('Resolved'),
   closed('Closed');
 
@@ -31,6 +30,7 @@ enum TicketStatus {
       'open' => 'submitted',
       'inprogress' => 'processing',
       'reopened' => 'processing',
+      'pending' => 'processing',
       _ => key,
     };
 

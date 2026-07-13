@@ -360,15 +360,10 @@ class _UserTile extends StatelessWidget {
     final actorRole = UserRole.fromValue(currentUserRole);
     final targetRole = UserRole.fromValue(user.role);
 
-    if (targetRole == UserRole.superAdmin) {
-      return false;
-    }
-
-    if (actorRole == UserRole.superAdmin) {
-      return true;
-    }
-
-    return targetRole == UserRole.staff || targetRole == UserRole.user;
+    return actorRole == UserRole.admin &&
+        (targetRole == UserRole.admin ||
+            targetRole == UserRole.staff ||
+            targetRole == UserRole.user);
   }
 }
 

@@ -200,8 +200,9 @@ class _UpdateUserPageState extends State<UpdateUserPage> {
                     ],
                     const SizedBox(height: 20),
                     FilledButton.icon(
-                      onPressed:
-                          viewModel.isLoading ? null : () => _submit(viewModel),
+                      onPressed: viewModel.isLoading
+                          ? null
+                          : () => _submit(viewModel),
                       icon: const Icon(Icons.save),
                       label: const Text('Save changes'),
                     ),
@@ -217,7 +218,7 @@ class _UpdateUserPageState extends State<UpdateUserPage> {
 
   List<UserRole> get _availableRoles {
     final actorRole = UserRole.fromValue(widget.currentUserRole);
-    if (actorRole == UserRole.superAdmin) {
+    if (actorRole == UserRole.admin) {
       return const [UserRole.admin, UserRole.staff, UserRole.user];
     }
 

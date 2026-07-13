@@ -179,20 +179,74 @@ class _TicketDetailPageState extends State<TicketDetailPage>
     setState(() => _isEditing = false);
   }
 
-  Future<void> _changeStatus(
+  Future<void> _confirmStatusChange(
     TicketDetailViewModel viewModel,
     Ticket ticket,
-  ) async {
-    final result = await showDialog<_StatusChangeResult>(
+    _TicketViewer viewer, {
+    required TicketStatus status,
+    required String title,
+    required String message,
+  }) async {
+    final reasonController = TextEditingController();
+    String? reasonError;
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return _StatusChangeDialog(currentStatus: ticket.status);
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message),
+                if (status == TicketStatus.cancelled) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    key: const Key('admin-cancel-reason-field'),
+                    controller: reasonController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Cancellation reason',
+                      errorText: reasonError,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Back'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (status == TicketStatus.cancelled &&
+                      reasonController.text.trim().isEmpty) {
+                    setDialogState(
+                      () => reasonError = 'Cancellation reason is required.',
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
       },
     );
 
-    if (result == null) {
+    if (confirmed != true) {
+      reasonController.dispose();
       return;
     }
+
+    final cancellationReason = reasonController.text.trim();
+    reasonController.dispose();
 
     final ticketId = ticket.id;
     if (ticketId == null) {
@@ -201,56 +255,30 @@ class _TicketDetailPageState extends State<TicketDetailPage>
 
     final success = await viewModel.updateTicketStatus(
       ticketId: ticketId,
-      status: result.status,
-      note: result.note,
-      solutionSummary: result.solutionSummary,
+      status: status.value,
+      changedByUserId: viewer.id,
+      changedByRole: viewer.role.value,
+      note: status == TicketStatus.closed
+          ? 'Requester confirmed the resolution.'
+          : cancellationReason,
     );
 
-    if (!mounted || !success) {
+    if (!mounted) {
+      return;
+    }
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(viewModel.errorMessage ?? 'Status update failed.'),
+        ),
+      );
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Status changed to ${result.status}.')),
+      SnackBar(content: Text('Status changed to ${status.value}.')),
     );
-  }
-
-  Future<void> _delete(TicketDetailViewModel viewModel, Ticket ticket) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete ticket'),
-          content: Text('Delete "${ticket.title}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    final ticketId = ticket.id;
-    if (ticketId == null) {
-      return;
-    }
-
-    final success = await viewModel.deleteTicket(ticketId);
-    if (!mounted || !success) {
-      return;
-    }
-
-    Navigator.pop(context, true);
   }
 
   void _openFeedbackPage(
@@ -298,10 +326,28 @@ class _TicketDetailPageState extends State<TicketDetailPage>
             if (ticket != null) {
               _populateForm(ticket);
             }
-            final isClosed = ticket?.status == TicketStatus.closed.value;
-            final isRequester = ticket?.createdByUserId == viewer.id;
-            final canEdit = ticket != null && isRequester && !isClosed;
+            final ticketStatus = ticket == null
+                ? null
+                : TicketStatus.fromValue(ticket.status);
+            final isClosed = ticketStatus == TicketStatus.closed;
+            final isCancelled = ticketStatus == TicketStatus.cancelled;
+            final isRequester =
+                ticket?.createdByUserId == viewer.id ||
+                ticket?.requestedId == viewer.id;
+            final canEdit =
+                ticket != null && isRequester && !isClosed && !isCancelled;
             final canGiveFeedback = ticket != null && isRequester && isClosed;
+            final canConfirmResolved =
+                ticket != null &&
+                isRequester &&
+                viewer.role == UserRole.user &&
+                TicketStatus.fromValue(ticket.status) == TicketStatus.resolved;
+            final canCancel =
+                ticket != null &&
+                viewer.role == UserRole.admin &&
+                ticketStatus != TicketStatus.resolved &&
+                ticketStatus != TicketStatus.closed &&
+                ticketStatus != TicketStatus.cancelled;
             final canViewFeedback =
                 viewer.role == UserRole.admin || viewer.role == UserRole.staff;
 
@@ -309,12 +355,41 @@ class _TicketDetailPageState extends State<TicketDetailPage>
               appBar: AppBar(
                 title: const Text('Ticket details'),
                 actions: [
+                  if (canConfirmResolved)
+                    IconButton(
+                      key: const Key('confirm-resolution-button'),
+                      icon: const Icon(Icons.check_circle),
+                      tooltip: 'Confirm resolution',
+                      onPressed: () => _confirmStatusChange(
+                        viewModel,
+                        ticket,
+                        viewer,
+                        status: TicketStatus.closed,
+                        title: 'Confirm resolution',
+                        message:
+                            'The issue is resolved. Confirm OK and close this ticket?',
+                      ),
+                    ),
+                  if (canCancel)
+                    IconButton(
+                      key: const Key('admin-cancel-ticket-button'),
+                      icon: const Icon(Icons.cancel),
+                      tooltip: 'Cancel ticket',
+                      onPressed: () => _confirmStatusChange(
+                        viewModel,
+                        ticket,
+                        viewer,
+                        status: TicketStatus.cancelled,
+                        title: 'Cancel ticket',
+                        message: 'Cancel this ticket request?',
+                      ),
+                    ),
                   if (canGiveFeedback)
                     IconButton(
                       icon: const Icon(Icons.star),
                       tooltip: 'Feedback',
                       onPressed: () =>
-                          _openFeedbackPage(ticket!, feedbackVm, viewer.id),
+                          _openFeedbackPage(ticket, feedbackVm, viewer.id),
                     ),
                   if (canEdit)
                     PopupMenuButton<_TicketAction>(
@@ -375,7 +450,7 @@ class _TicketDetailPageState extends State<TicketDetailPage>
                 commentVm: commentVm,
                 currentUserId: viewer.id,
                 isEditing: _isEditing && canEdit,
-                isClosed: isClosed,
+                isClosed: isClosed || isCancelled,
                 feedback: feedbackVm.feedback,
                 canViewFeedback: canViewFeedback,
               ),
@@ -641,121 +716,6 @@ class _TicketDetailBody extends StatelessWidget {
   }
 }
 
-class _StatusChangeDialog extends StatefulWidget {
-  const _StatusChangeDialog({required this.currentStatus});
-
-  final String currentStatus;
-
-  @override
-  State<_StatusChangeDialog> createState() => _StatusChangeDialogState();
-}
-
-class _StatusChangeDialogState extends State<_StatusChangeDialog> {
-  late String _status;
-  final TextEditingController _noteController = TextEditingController();
-  final TextEditingController _solutionController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _status = _statusLabel(widget.currentStatus);
-  }
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    _solutionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Change status'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: _status,
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                border: OutlineInputBorder(),
-              ),
-              items: _knownStatuses.map((status) {
-                return DropdownMenuItem(value: status, child: Text(status));
-              }).toList(),
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _status = value;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteController,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Note',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (_status == TicketStatus.resolved.value) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _solutionController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Solution summary',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            Navigator.pop(
-              context,
-              _StatusChangeResult(
-                status: _status,
-                note: _noteController.text,
-                solutionSummary: _solutionController.text,
-              ),
-            );
-          },
-          child: const Text('Update'),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusChangeResult {
-  const _StatusChangeResult({
-    required this.status,
-    required this.note,
-    required this.solutionSummary,
-  });
-
-  final String status;
-  final String note;
-  final String solutionSummary;
-}
-
 enum _TicketAction { edit }
 
 class _TicketViewer {
@@ -802,14 +762,6 @@ final List<String> _knownIssueTypes = IssueType.values
 final List<String> _knownPriorities = PriorityLevel.values
     .map((priority) => priority.value)
     .toList(growable: false);
-
-final List<String> _knownStatuses = TicketStatus.values
-    .map((status) => status.value)
-    .toList(growable: false);
-
-String _statusLabel(String status) {
-  return TicketStatus.fromValue(status).value;
-}
 
 Future<ITicketService> _createTicketService() async {
   return TicketServiceImpl(

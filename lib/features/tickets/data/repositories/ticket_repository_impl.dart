@@ -1,6 +1,7 @@
 import '../../../../core/enums/issue_type.dart';
 import '../../../../core/enums/priority_level.dart';
 import '../../../../core/enums/ticket_status.dart';
+import '../../../../core/enums/user_role.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/ticket.dart';
 import '../../domain/repositories/i_ticket_repository.dart';
@@ -23,8 +24,7 @@ class TicketRepositoryImpl implements ITicketRepository {
       {
         TicketStatus.submitted: {TicketStatus.assigned, TicketStatus.cancelled},
         TicketStatus.assigned: {TicketStatus.processing, TicketStatus.resolved},
-        TicketStatus.processing: {TicketStatus.pending, TicketStatus.resolved},
-        TicketStatus.pending: {TicketStatus.processing},
+        TicketStatus.processing: {TicketStatus.resolved},
         TicketStatus.resolved: {TicketStatus.closed},
       };
 
@@ -168,6 +168,7 @@ class TicketRepositoryImpl implements ITicketRepository {
     required int ticketId,
     required String status,
     int? changedByUserId,
+    String? changedByRole,
     String? note,
     String? solutionSummary,
   }) async {
@@ -178,8 +179,12 @@ class TicketRepositoryImpl implements ITicketRepository {
 
     final normalizedStatus = _normalizeStatus(status);
     _validateStatusTransition(
+      ticket: ticket,
       currentStatus: ticket.status,
       nextStatus: normalizedStatus,
+      changedByUserId: changedByUserId,
+      changedByRole: changedByRole,
+      note: note,
     );
 
     if (TicketStatus.fromValue(normalizedStatus) == TicketStatus.resolved &&
@@ -227,14 +232,45 @@ class TicketRepositoryImpl implements ITicketRepository {
   }
 
   void _validateStatusTransition({
+    required TicketDto ticket,
     required String currentStatus,
     required String nextStatus,
+    int? changedByUserId,
+    String? changedByRole,
+    String? note,
   }) {
     final current = _parseStatus(currentStatus);
     final next = _parseStatus(nextStatus);
 
     if (current == next) {
       return;
+    }
+
+    final role = UserRole.fromValue(changedByRole ?? '');
+    if (next == TicketStatus.cancelled) {
+      if (role != UserRole.admin) {
+        throw const AppException('Only admins can cancel a ticket.');
+      }
+      if (current == TicketStatus.resolved || current == TicketStatus.closed) {
+        throw const AppException(
+          'Resolved or closed tickets cannot be cancelled.',
+        );
+      }
+      if (note == null || note.trim().isEmpty) {
+        throw const AppException('Cancellation reason is required.');
+      }
+      return;
+    }
+
+    if (current == TicketStatus.resolved && next == TicketStatus.closed) {
+      final requesterId = ticket.createdByUserId ?? ticket.requestedId;
+      if (role != UserRole.user ||
+          changedByUserId == null ||
+          changedByUserId != requesterId) {
+        throw const AppException(
+          'Only the ticket requester can confirm and close a resolved ticket.',
+        );
+      }
     }
 
     final allowedNextStatuses = _allowedStatusTransitions[current];
