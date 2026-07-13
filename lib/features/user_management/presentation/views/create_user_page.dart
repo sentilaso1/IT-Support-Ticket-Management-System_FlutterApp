@@ -122,11 +122,6 @@ class _CreateUserPageState extends State<CreateUserPage> {
   }
 
   List<UserRole> get _availableRoles {
-    final actorRole = UserRole.fromValue(widget.currentUserRole);
-    if (actorRole == UserRole.admin) {
-      return const [UserRole.admin, UserRole.staff, UserRole.user];
-    }
-
     return const [UserRole.staff, UserRole.user];
   }
 }

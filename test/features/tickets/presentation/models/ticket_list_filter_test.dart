@@ -40,6 +40,13 @@ void main() {
       ).apply(tickets).map((ticket) => ticket.id),
       [11],
     );
+    expect(
+      const TicketListFilter(
+        query: 'nter paper',
+      ).apply(tickets).map((ticket) => ticket.id),
+      [11],
+      reason: 'Search must match text contained in the middle of a title.',
+    );
   });
 
   test('combines search, status, and priority filters', () {

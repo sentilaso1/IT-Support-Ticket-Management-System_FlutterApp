@@ -10,8 +10,11 @@ class UserManagementServiceImpl implements IUserManagementService {
   final IUserManagementRepository _repository;
 
   @override
-  Future<List<ManagedUser>> getUsers() {
-    return _repository.getUsers();
+  Future<List<ManagedUser>> getUsers() async {
+    final users = await _repository.getUsers();
+    return users
+        .where((user) => UserRole.fromValue(user.role) != UserRole.admin)
+        .toList(growable: false);
   }
 
   @override
@@ -59,7 +62,7 @@ class UserManagementServiceImpl implements IUserManagementService {
     int? departmentId,
     String? phoneNumber,
     required bool isActive,
-  }) {
+  }) async {
     _validateUserInput(
       fullName: fullName,
       username: 'not-updated',
@@ -68,6 +71,16 @@ class UserManagementServiceImpl implements IUserManagementService {
       departmentId: departmentId,
       requireUsername: false,
     );
+
+    final existingUser = await _getRequiredUser(id);
+    final existingRole = UserRole.fromValue(existingUser.role);
+    final updatedRole = UserRole.fromValue(role);
+    if (existingRole == UserRole.admin &&
+        (!isActive || updatedRole != UserRole.admin)) {
+      throw const AppException(
+        'Administrator accounts cannot be disabled or changed to another role.',
+      );
+    }
 
     return _repository.updateUser(
       id: id,
@@ -81,10 +94,11 @@ class UserManagementServiceImpl implements IUserManagementService {
   }
 
   @override
-  Future<void> setUserActive({
-    required int id,
-    required bool isActive,
-  }) {
+  Future<void> setUserActive({required int id, required bool isActive}) async {
+    final user = await _getRequiredUser(id);
+    if (!isActive && UserRole.fromValue(user.role) == UserRole.admin) {
+      throw const AppException('Administrator accounts cannot be disabled.');
+    }
     return _repository.setUserActive(id: id, isActive: isActive);
   }
 
@@ -138,5 +152,13 @@ class UserManagementServiceImpl implements IUserManagementService {
     }
 
     return trimmed;
+  }
+
+  Future<ManagedUser> _getRequiredUser(int id) async {
+    final user = await _repository.getUserById(id);
+    if (user == null) {
+      throw const AppException('User account was not found.');
+    }
+    return user;
   }
 }
