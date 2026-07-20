@@ -1121,27 +1121,330 @@ class _FeedbackSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('User feedback', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Row(
-          children: List.generate(
-            5,
-            (index) => Icon(
-              index < feedback.staffRating ? Icons.star : Icons.star_border,
-              color: Theme.of(context).colorScheme.primary,
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final reviewer = feedback.reviewerName?.trim();
+    final reviewee = feedback.revieweeName?.trim();
+    final comment = feedback.comment?.trim();
+    final average = (feedback.staffRating + feedback.supportRating) / 2;
+    final feedbackDate = feedback.updatedAt ?? feedback.createdAt;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  colors.primaryContainer,
+                  colors.secondaryContainer.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.78),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.reviews_outlined, color: colors.primary),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'User feedback',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colors.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Submitted ${_formatDateTime(feedbackDate)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onPrimaryContainer.withValues(
+                            alpha: 0.72,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.86),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star_rounded, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text(
+                        average.toStringAsFixed(1),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text('/5', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        Text('Staff rating: ${feedback.staffRating}/5'),
-        Text('Support experience: ${feedback.supportRating}/5'),
-        if (feedback.comment?.trim().isNotEmpty ?? false) ...[
-          const SizedBox(height: 8),
-          Text(feedback.comment!),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _FeedbackPerson(
+                      icon: Icons.person_outline,
+                      label: 'Reviewed by',
+                      name: reviewer?.isNotEmpty == true
+                          ? reviewer!
+                          : 'User #${feedback.reviewerUserId}',
+                    ),
+                    _FeedbackPerson(
+                      icon: Icons.support_agent_outlined,
+                      label: 'Assigned staff',
+                      name: reviewee?.isNotEmpty == true
+                          ? reviewee!
+                          : 'Staff #${feedback.revieweeUserId}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final tileWidth = constraints.maxWidth >= 620
+                        ? (constraints.maxWidth - 12) / 2
+                        : constraints.maxWidth;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        SizedBox(
+                          width: tileWidth,
+                          child: _FeedbackRatingTile(
+                            icon: Icons.engineering_outlined,
+                            title: 'Staff performance',
+                            subtitle:
+                                'Professionalism and quality of resolution',
+                            rating: feedback.staffRating,
+                          ),
+                        ),
+                        SizedBox(
+                          width: tileWidth,
+                          child: _FeedbackRatingTile(
+                            icon: Icons.handshake_outlined,
+                            title: 'Support experience',
+                            subtitle: 'Overall ticket support experience',
+                            rating: feedback.supportRating,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Comment',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: colors.outlineVariant),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.format_quote_rounded,
+                        color: colors.primary,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          comment?.isNotEmpty == true
+                              ? comment!
+                              : 'No additional comment was provided.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: comment?.isNotEmpty == true
+                                ? colors.onSurface
+                                : colors.onSurfaceVariant,
+                            fontStyle: comment?.isNotEmpty == true
+                                ? FontStyle.normal
+                                : FontStyle.italic,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _FeedbackPerson extends StatelessWidget {
+  const _FeedbackPerson({
+    required this.icon,
+    required this.label,
+    required this.name,
+  });
+
+  final IconData icon;
+  final String label;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 210),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: colors.secondaryContainer,
+            child: Icon(icon, size: 20, color: colors.onSecondaryContainer),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                name,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedbackRatingTile extends StatelessWidget {
+  const _FeedbackRatingTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.rating,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final int rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: colors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                '$rating/5',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: List.generate(
+              5,
+              (index) => Padding(
+                padding: const EdgeInsets.only(right: 3),
+                child: Icon(
+                  index < rating
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  color: index < rating
+                      ? Colors.amber.shade700
+                      : colors.outline,
+                  size: 25,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
