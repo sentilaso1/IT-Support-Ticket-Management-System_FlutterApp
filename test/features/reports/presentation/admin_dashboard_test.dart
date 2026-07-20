@@ -5,6 +5,7 @@ import 'package:it_ticket_support_management/features/reports/domain/entities/pr
 import 'package:it_ticket_support_management/features/reports/domain/entities/staff_performance_report.dart';
 import 'package:it_ticket_support_management/features/reports/domain/entities/ticket_volume_report.dart';
 import 'package:it_ticket_support_management/features/reports/domain/entities/user_report.dart';
+import 'package:it_ticket_support_management/features/reports/domain/entities/sla_summary_report.dart';
 import 'package:it_ticket_support_management/features/reports/presentation/viewmodels/admin_dashboard_view_model.dart';
 import 'package:it_ticket_support_management/features/reports/presentation/views/admin_dashboard_page.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +29,7 @@ void main() {
     expect(viewModel.inactiveUsers, 1);
     expect(viewModel.userReports, hasLength(2));
     expect(viewModel.errorMessage, isNull);
+    expect(viewModel.slaSummary.currentlyBreached, 1);
   });
 
   testWidgets('renders detailed tables including the user report', (
@@ -54,6 +56,7 @@ void main() {
     expect(find.text('Staff performance'), findsOneWidget);
     expect(find.text('Processing time by category'), findsOneWidget);
     expect(find.text('User report'), findsOneWidget);
+    expect(find.text('SLA performance'), findsOneWidget);
     expect(find.text('Alice User'), findsOneWidget);
     expect(find.text('Chart'), findsNothing);
   });
@@ -89,6 +92,24 @@ class _ReportServiceFake implements IReportService {
   void _recordRange(String startDate, String endDate) {
     lastStartDate = startDate;
     lastEndDate = endDate;
+  }
+
+  @override
+  Future<SlaSummaryReport> getSlaSummaryReport(
+    String startDate,
+    String endDate,
+  ) async {
+    _recordRange(startDate, endDate);
+    return const SlaSummaryReport(
+      totalActionable: 7,
+      responseMet: 4,
+      responseBreached: 1,
+      resolutionMet: 2,
+      resolutionBreached: 1,
+      currentlyAtRisk: 1,
+      currentlyBreached: 1,
+      exempt: 1,
+    );
   }
 
   @override

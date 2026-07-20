@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/di/service_locator.dart';
 import '../../../tickets/presentation/views/ticket_detail_page.dart';
+import '../../../tickets/presentation/widgets/sla_status_badge.dart';
 import '../../domain/entities/assignment.dart';
 import '../models/assignment_list_filter.dart';
 import '../viewmodels/technician_queue_view_model.dart';
@@ -22,6 +23,7 @@ class _TechnicianQueuePageState extends State<TechnicianQueuePage> {
   final TextEditingController _searchController = TextEditingController();
   String _statusFilter = '';
   String _priorityFilter = '';
+  String _slaFilter = '';
 
   @override
   void initState() {
@@ -121,28 +123,43 @@ class _TechnicianQueuePageState extends State<TechnicianQueuePage> {
       );
     }
 
-    final assignments = AssignmentListFilter(
+    final filteredAssignments = AssignmentListFilter(
       query: _searchController.text,
       status: _statusFilter,
       priority: _priorityFilter,
     ).apply(viewModel.assignments);
+    final now = DateTime.now();
+    final assignments = _slaFilter.isEmpty
+        ? filteredAssignments
+        : filteredAssignments
+              .where(
+                (assignment) =>
+                    assignment.resolutionSlaStatusAt(now).name == _slaFilter,
+              )
+              .toList(growable: false);
 
     final children = <Widget>[
       TicketQueueFilterBar(
         searchController: _searchController,
         status: _statusFilter,
         priority: _priorityFilter,
+        slaStatus: _slaFilter,
         resultCount: assignments.length,
         totalCount: viewModel.assignments.length,
         onSearchChanged: (_) => setState(() {}),
         onStatusChanged: (value) => setState(() => _statusFilter = value ?? ''),
         onPriorityChanged: (value) =>
             setState(() => _priorityFilter = value ?? ''),
-        onClearFilters: _statusFilter.isEmpty && _priorityFilter.isEmpty
+        onSlaStatusChanged: (value) => setState(() => _slaFilter = value ?? ''),
+        onClearFilters:
+            _statusFilter.isEmpty &&
+                _priorityFilter.isEmpty &&
+                _slaFilter.isEmpty
             ? null
             : () => setState(() {
                 _statusFilter = '';
                 _priorityFilter = '';
+                _slaFilter = '';
               }),
       ),
       const SizedBox(height: 12),
@@ -210,6 +227,10 @@ class _AssignmentTile extends StatelessWidget {
                   Chip(
                     visualDensity: VisualDensity.compact,
                     label: Text(assignment.priority),
+                  ),
+                  SlaStatusBadge(
+                    status: assignment.resolutionSlaStatusAt(DateTime.now()),
+                    dueAt: assignment.resolutionDueAt,
                   ),
                   Chip(
                     visualDensity: VisualDensity.compact,

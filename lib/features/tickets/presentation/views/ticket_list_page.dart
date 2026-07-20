@@ -10,6 +10,7 @@ import '../../data/repositories/ticket_repository_impl.dart';
 import '../../domain/entities/ticket.dart';
 import '../models/ticket_list_filter.dart';
 import '../viewmodels/ticket_list_view_model.dart';
+import '../widgets/sla_status_badge.dart';
 import 'create_ticket_page.dart';
 import 'ticket_detail_page.dart';
 
@@ -341,10 +342,19 @@ class _TicketListBodyState extends State<_TicketListBody> {
         _TicketSortOption.status => TicketStatus.fromValue(
           a.status,
         ).index.compareTo(TicketStatus.fromValue(b.status).index),
+        _TicketSortOption.slaDeadline => _compareDeadline(a, b),
       };
     });
 
     return sortedTickets;
+  }
+
+  int _compareDeadline(Ticket a, Ticket b) {
+    final aDue = a.resolutionDueAt;
+    final bDue = b.resolutionDueAt;
+    if (aDue == null) return bDue == null ? 0 : 1;
+    if (bDue == null) return -1;
+    return aDue.compareTo(bDue);
   }
 
   int _priorityRank(String priority) {
@@ -411,7 +421,8 @@ enum _TicketSortOption {
   newestFirst('Newest first'),
   oldestFirst('Oldest first'),
   priorityHighFirst('Priority: high first'),
-  status('Status');
+  status('Status'),
+  slaDeadline('SLA deadline');
 
   const _TicketSortOption(this.label);
 
@@ -700,6 +711,10 @@ class _TicketTile extends StatelessWidget {
                           ),
                           _TicketInfoChip(label: ticket.priority),
                           _TicketInfoChip(label: ticket.issueType),
+                          SlaStatusBadge(
+                            status: ticket.resolutionSlaStatus,
+                            dueAt: ticket.resolutionDueAt,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
