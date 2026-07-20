@@ -5,6 +5,7 @@ import '../features/auth/presentation/viewmodels/login_view_model.dart';
 import '../features/auth/presentation/views/change_password_page.dart';
 import '../features/auth/presentation/views/home_page.dart';
 import '../features/auth/presentation/views/login_page.dart';
+import 'routes/app_routes.dart';
 
 class App extends StatefulWidget {
   const App({super.key});
@@ -24,12 +25,21 @@ class _AppState extends State<App> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+      useMaterial3: true,
+    );
+
     return FutureBuilder<LoginViewModel>(
       future: _loginViewModelFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const MaterialApp(
-            home: Scaffold(body: Center(child: CircularProgressIndicator())),
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: theme,
+            home: const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            ),
           );
         }
 
@@ -38,9 +48,10 @@ class _AppState extends State<App> {
         return MaterialApp(
           title: 'IT Support Ticket Management',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-            useMaterial3: true,
+          theme: theme,
+          onGenerateRoute: (settings) => AppRoutes.onGenerateRoute(
+            settings,
+            loginViewModel: loginViewModel,
           ),
           home: currentUser == null
               ? LoginPage(viewModel: loginViewModel)
