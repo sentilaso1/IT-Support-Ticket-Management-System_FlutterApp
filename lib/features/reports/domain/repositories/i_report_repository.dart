@@ -2,6 +2,7 @@ import '../entities/processing_time_report.dart';
 import '../entities/staff_performance_report.dart';
 import '../entities/ticket_volume_report.dart';
 import '../entities/user_report.dart';
+import '../entities/sla_summary_report.dart';
 
 abstract interface class IReportRepository {
   Future<List<TicketVolumeReport>> getTicketVolumeReport(
@@ -20,4 +21,9 @@ abstract interface class IReportRepository {
   );
 
   Future<List<UserReport>> getUserReport(String startDate, String endDate);
+
+  Future<SlaSummaryReport> getSlaSummaryReport(
+    String startDate,
+    String endDate,
+  );
 }

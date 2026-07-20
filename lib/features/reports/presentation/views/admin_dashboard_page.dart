@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/database/reference_data_service.dart';
+
 import '../../domain/entities/processing_time_report.dart';
 import '../../domain/entities/staff_performance_report.dart';
 import '../../domain/entities/ticket_volume_report.dart';
@@ -115,6 +117,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           const SizedBox(height: 12),
           _SummaryCards(viewModel: viewModel),
+          const SizedBox(height: 24),
+          const _SectionTitle(
+            icon: Icons.timer_outlined,
+            title: 'SLA performance',
+            subtitle:
+                'Response and resolution compliance for the selected period',
+          ),
+          const SizedBox(height: 12),
+          _SlaSummaryCards(viewModel: viewModel),
+          if (viewModel.slaPolicies.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _SlaPolicyCard(viewModel: viewModel),
+          ],
           const SizedBox(height: 24),
           const _SectionTitle(
             icon: Icons.calendar_view_week_outlined,
@@ -500,6 +515,231 @@ class _MetricCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SlaSummaryCards extends StatelessWidget {
+  const _SlaSummaryCards({required this.viewModel});
+
+  final AdminDashboardViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = viewModel.slaSummary;
+    final items = [
+      (
+        'Response compliance',
+        '${(summary.responseComplianceRate * 100).toStringAsFixed(1)}%',
+        Icons.reply_outlined,
+        Colors.blue,
+      ),
+      (
+        'Resolution compliance',
+        '${(summary.resolutionComplianceRate * 100).toStringAsFixed(1)}%',
+        Icons.task_alt,
+        Colors.green,
+      ),
+      (
+        'At risk',
+        '${summary.currentlyAtRisk}',
+        Icons.warning_amber,
+        Colors.orange,
+      ),
+      ('Breached', '${summary.currentlyBreached}', Icons.timer_off, Colors.red),
+      (
+        'Exempt',
+        '${summary.exempt}',
+        Icons.remove_circle_outline,
+        Colors.blueGrey,
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 5
+            : constraints.maxWidth >= 560
+            ? 3
+            : 2;
+        const gap = 12.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: items
+              .map(
+                (item) => _MetricCard(
+                  width: width,
+                  label: item.$1,
+                  value: item.$2,
+                  icon: item.$3,
+                  color: item.$4,
+                ),
+              )
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+}
+
+class _SlaPolicyCard extends StatelessWidget {
+  const _SlaPolicyCard({required this.viewModel});
+
+  final AdminDashboardViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'SLA policies',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'New deadlines use these values. Existing ticket deadlines are unchanged.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: viewModel.slaPolicies
+                  .map(
+                    (policy) => ActionChip(
+                      avatar: const Icon(Icons.edit_outlined, size: 18),
+                      label: Text(
+                        '${policy.name}: ${policy.responseSlaHours ?? '—'}h / '
+                        '${policy.slaHours ?? '—'}h',
+                      ),
+                      onPressed: viewModel.isLoading
+                          ? null
+                          : () => _editPolicy(context, policy),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editPolicy(
+    BuildContext context,
+    PriorityReference policy,
+  ) async {
+    final result = await showDialog<(int, int)?>(
+      context: context,
+      builder: (_) => _SlaPolicyDialog(policy: policy),
+    );
+    if (result == null || !context.mounted) return;
+    final success = await viewModel.updateSlaPolicy(
+      priorityId: policy.id,
+      responseHours: result.$1,
+      resolutionHours: result.$2,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success ? 'SLA policy updated.' : 'SLA policy update failed.',
+        ),
+      ),
+    );
+  }
+}
+
+class _SlaPolicyDialog extends StatefulWidget {
+  const _SlaPolicyDialog({required this.policy});
+
+  final PriorityReference policy;
+
+  @override
+  State<_SlaPolicyDialog> createState() => _SlaPolicyDialogState();
+}
+
+class _SlaPolicyDialogState extends State<_SlaPolicyDialog> {
+  late final TextEditingController _responseController;
+  late final TextEditingController _resolutionController;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _responseController = TextEditingController(
+      text: '${widget.policy.responseSlaHours ?? ''}',
+    );
+    _resolutionController = TextEditingController(
+      text: '${widget.policy.slaHours ?? ''}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _responseController.dispose();
+    _resolutionController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final response = int.tryParse(_responseController.text.trim());
+    final resolution = int.tryParse(_resolutionController.text.trim());
+    if (response == null || resolution == null) {
+      setState(() => _errorMessage = 'Enter valid SLA hours.');
+      return;
+    }
+    if (response <= 0 || resolution <= 0 || response > resolution) {
+      setState(
+        () => _errorMessage =
+            'Response SLA must be positive and cannot exceed resolution SLA.',
+      );
+      return;
+    }
+    Navigator.pop(context, (response, resolution));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.policy.name} SLA policy'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _responseController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Response hours'),
+            ),
+            TextField(
+              controller: _resolutionController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Resolution hours'),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

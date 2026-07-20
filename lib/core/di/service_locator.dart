@@ -306,7 +306,10 @@ class ServiceLocator {
 
   // --- Khởi tạo ViewModel (Dùng kiểu Factory trả về instance mới) ---
   static Future<AdminDashboardViewModel> get adminDashboardViewModel async {
-    return AdminDashboardViewModel(reportService: await reportService);
+    return AdminDashboardViewModel(
+      reportService: await reportService,
+      referenceDataService: await referenceDataService,
+    );
   }
 
   // --- Khởi tạo CategoryViewModel ---

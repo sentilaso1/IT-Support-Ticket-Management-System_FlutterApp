@@ -2,6 +2,7 @@ import '../../domain/entities/processing_time_report.dart';
 import '../../domain/entities/staff_performance_report.dart';
 import '../../domain/entities/ticket_volume_report.dart';
 import '../../domain/entities/user_report.dart';
+import '../../domain/entities/sla_summary_report.dart';
 import '../../domain/repositories/i_report_repository.dart';
 import 'i_report_service.dart';
 
@@ -9,6 +10,15 @@ class ReportServiceImpl implements IReportService {
   const ReportServiceImpl({required this.repository});
 
   final IReportRepository repository;
+
+  @override
+  Future<SlaSummaryReport> getSlaSummaryReport(
+    String startDate,
+    String endDate,
+  ) {
+    _validateRange(startDate, endDate);
+    return repository.getSlaSummaryReport(startDate, endDate);
+  }
 
   @override
   Future<List<TicketVolumeReport>> getTicketVolumeReport(

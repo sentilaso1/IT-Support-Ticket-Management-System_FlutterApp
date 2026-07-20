@@ -1,16 +1,80 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/sla_persistence.dart';
 import '../dtos/processing_time_report_dto.dart';
 import '../dtos/staff_performance_report_dto.dart';
 import '../dtos/ticket_volume_report_dto.dart';
 import '../dtos/user_report_dto.dart';
+import '../dtos/sla_summary_report_dto.dart';
 import 'i_report_local_data_source.dart';
 
 class ReportLocalDataSourceImpl implements IReportLocalDataSource {
   const ReportLocalDataSourceImpl({required this.database});
 
   final Database database;
+
+  @override
+  Future<SlaSummaryReportDto> getSlaSummaryReport(
+    String startDate,
+    String endDate,
+  ) async {
+    await SlaPersistence.refreshBreaches(database);
+    final rows = await database.rawQuery(
+      '''
+      WITH clock(nowValue) AS (SELECT julianday(?))
+      SELECT
+        SUM(CASE WHEN LOWER(status) <> 'cancelled' THEN 1 ELSE 0 END)
+          AS total_actionable,
+        SUM(CASE WHEN slaExceptionReason IS NULL
+          AND LOWER(status) <> 'cancelled'
+          AND firstRespondedAt IS NOT NULL
+          AND julianday(firstRespondedAt) <= julianday(responseDueAt)
+          THEN 1 ELSE 0 END) AS response_met,
+        SUM(CASE WHEN slaExceptionReason IS NULL
+          AND LOWER(status) <> 'cancelled'
+          AND (
+            (firstRespondedAt IS NOT NULL
+              AND julianday(firstRespondedAt) > julianday(responseDueAt))
+            OR (firstRespondedAt IS NULL
+              AND clock.nowValue >= julianday(responseDueAt))
+          )
+          THEN 1 ELSE 0 END) AS response_breached,
+        SUM(CASE WHEN slaExceptionReason IS NULL
+          AND LOWER(status) <> 'cancelled'
+          AND slaCompletedAt IS NOT NULL
+          AND julianday(slaCompletedAt) <= julianday(resolutionDueAt)
+          THEN 1 ELSE 0 END) AS resolution_met,
+        SUM(CASE WHEN slaExceptionReason IS NULL
+          AND LOWER(status) <> 'cancelled'
+          AND (
+            (slaCompletedAt IS NOT NULL
+              AND julianday(slaCompletedAt) > julianday(resolutionDueAt))
+            OR (slaCompletedAt IS NULL
+              AND clock.nowValue >= julianday(resolutionDueAt))
+          )
+          THEN 1 ELSE 0 END) AS resolution_breached,
+        SUM(CASE WHEN slaCompletedAt IS NULL
+          AND slaExceptionReason IS NULL
+          AND clock.nowValue < julianday(resolutionDueAt)
+          AND clock.nowValue >=
+            julianday(createdAt) +
+            ((julianday(resolutionDueAt) - julianday(createdAt)) * 0.75)
+          THEN 1 ELSE 0 END) AS currently_at_risk,
+        SUM(CASE WHEN slaCompletedAt IS NULL
+          AND slaExceptionReason IS NULL
+          AND clock.nowValue >= julianday(resolutionDueAt)
+          THEN 1 ELSE 0 END) AS currently_breached,
+        SUM(CASE WHEN slaExceptionReason IS NOT NULL
+          OR LOWER(status) = 'cancelled' THEN 1 ELSE 0 END) AS exempt
+      FROM ${AppDatabase.ticketsTable}
+      CROSS JOIN clock
+      WHERE DATE(createdAt) BETWEEN ? AND ?
+      ''',
+      [DateTime.now().toIso8601String(), startDate, endDate],
+    );
+    return SlaSummaryReportDto.fromMap(rows.first);
+  }
 
   @override
   Future<List<TicketVolumeReportDto>> getTicketVolumeReport(

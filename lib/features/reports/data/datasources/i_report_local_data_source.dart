@@ -2,6 +2,7 @@ import '../dtos/processing_time_report_dto.dart';
 import '../dtos/staff_performance_report_dto.dart';
 import '../dtos/ticket_volume_report_dto.dart';
 import '../dtos/user_report_dto.dart';
+import '../dtos/sla_summary_report_dto.dart';
 
 abstract interface class IReportLocalDataSource {
   Future<List<TicketVolumeReportDto>> getTicketVolumeReport(
@@ -20,4 +21,9 @@ abstract interface class IReportLocalDataSource {
   );
 
   Future<List<UserReportDto>> getUserReport(String startDate, String endDate);
+
+  Future<SlaSummaryReportDto> getSlaSummaryReport(
+    String startDate,
+    String endDate,
+  );
 }

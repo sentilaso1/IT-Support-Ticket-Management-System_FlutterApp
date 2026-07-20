@@ -17,6 +17,7 @@ import '../../domain/entities/ticket.dart';
 import '../../domain/entities/ticket_status_note.dart';
 import '../viewmodels/ticket_detail_view_model.dart';
 import '../widgets/ticket_attachment_field.dart';
+import '../widgets/sla_status_badge.dart';
 import '../../../comments/presentation/viewmodels/comment_view_model.dart';
 import '../../../comments/presentation/views/comment_section.dart';
 import '../../../feedback/presentation/viewmodels/feedback_view_model.dart';
@@ -184,6 +185,13 @@ class _TicketDetailPageState extends State<TicketDetailPage>
         categoryId: _categoryId,
         solutionSummary: ticket.solutionSummary,
         resolvedAt: ticket.resolvedAt,
+        firstRespondedAt: ticket.firstRespondedAt,
+        responseDueAt: ticket.responseDueAt,
+        resolutionDueAt: ticket.resolutionDueAt,
+        slaCompletedAt: ticket.slaCompletedAt,
+        slaBreachedAt: ticket.slaBreachedAt,
+        slaExceptionReason: ticket.slaExceptionReason,
+        slaExceptionApprovedBy: ticket.slaExceptionApprovedBy,
         createdAt: ticket.createdAt,
         updatedAt: ticket.updatedAt,
         createdByUserId: ticket.createdByUserId,
@@ -579,6 +587,8 @@ class _TicketDetailBody extends StatelessWidget {
               Chip(label: Text('Created ${_formatDate(ticket.createdAt)}')),
             ],
           ),
+          const SizedBox(height: 12),
+          _SlaSummary(ticket: ticket),
           const SizedBox(height: 16),
           TextField(
             controller: titleController,
@@ -628,13 +638,7 @@ class _TicketDetailBody extends StatelessWidget {
             items: priorityOptions.map((p) {
               return DropdownMenuItem(value: p, child: Text(p));
             }).toList(),
-            onChanged: !isEditing || viewModel.isLoading
-                ? null
-                : (value) {
-                    if (value != null) {
-                      onPriorityChanged(value);
-                    }
-                  },
+            onChanged: null,
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<int?>(
@@ -693,6 +697,67 @@ class _TicketDetailBody extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _SlaSummary extends StatelessWidget {
+  const _SlaSummary({required this.ticket});
+
+  final Ticket ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return Card(
+      margin: EdgeInsets.zero,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Service level agreement',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                SlaStatusBadge(
+                  prefix: 'Response SLA',
+                  status: ticket.responseSlaStatusAt(now),
+                  dueAt: ticket.responseDueAt,
+                  now: now,
+                ),
+                SlaStatusBadge(
+                  prefix: 'Resolution SLA',
+                  status: ticket.resolutionSlaStatusAt(now),
+                  dueAt: ticket.resolutionDueAt,
+                  now: now,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Response deadline: ${_formatOptionalDateTime(ticket.responseDueAt)}',
+            ),
+            Text(
+              'Resolution deadline: ${_formatOptionalDateTime(ticket.resolutionDueAt)}',
+            ),
+            if (ticket.firstRespondedAt != null)
+              Text(
+                'First response: ${_formatDateTime(ticket.firstRespondedAt!)}',
+              ),
+            if (ticket.slaCompletedAt != null)
+              Text('SLA completed: ${_formatDateTime(ticket.slaCompletedAt!)}'),
+            if (ticket.slaExceptionReason != null)
+              Text('Exemption: ${ticket.slaExceptionReason}'),
+          ],
+        ),
       ),
     );
   }
@@ -1023,4 +1088,8 @@ String _formatDateTime(DateTime value) {
   return '${_formatDate(value)} '
       '${value.hour.toString().padLeft(2, '0')}:'
       '${value.minute.toString().padLeft(2, '0')}';
+}
+
+String _formatOptionalDateTime(DateTime? value) {
+  return value == null ? 'Not configured' : _formatDateTime(value);
 }
