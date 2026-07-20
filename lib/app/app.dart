@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/di/service_locator.dart';
+import '../core/constants/app_strings.dart';
+import '../core/theme/app_theme.dart';
 import '../features/auth/presentation/viewmodels/login_view_model.dart';
 import '../features/auth/presentation/views/change_password_page.dart';
 import '../features/auth/presentation/views/home_page.dart';
@@ -46,7 +48,7 @@ class _AppState extends State<App> {
         final loginViewModel = snapshot.data!;
         final currentUser = loginViewModel.currentUser;
         return MaterialApp(
-          title: 'IT Support Ticket Management',
+          title: AppStrings.appName,
           debugShowCheckedModeBanner: false,
           theme: theme,
           onGenerateRoute: (settings) => AppRoutes.onGenerateRoute(
