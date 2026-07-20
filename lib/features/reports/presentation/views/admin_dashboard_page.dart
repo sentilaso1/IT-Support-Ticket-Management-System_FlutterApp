@@ -635,51 +635,10 @@ class _SlaPolicyCard extends StatelessWidget {
     BuildContext context,
     PriorityReference policy,
   ) async {
-    final responseController = TextEditingController(
-      text: '${policy.responseSlaHours ?? ''}',
-    );
-    final resolutionController = TextEditingController(
-      text: '${policy.slaHours ?? ''}',
-    );
     final result = await showDialog<(int, int)?>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('${policy.name} SLA policy'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: responseController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Response hours'),
-            ),
-            TextField(
-              controller: resolutionController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Resolution hours'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final response = int.tryParse(responseController.text.trim());
-              final resolution = int.tryParse(resolutionController.text.trim());
-              if (response != null && resolution != null) {
-                Navigator.pop(dialogContext, (response, resolution));
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => _SlaPolicyDialog(policy: policy),
     );
-    responseController.dispose();
-    resolutionController.dispose();
     if (result == null || !context.mounted) return;
     final success = await viewModel.updateSlaPolicy(
       priorityId: policy.id,
@@ -693,6 +652,94 @@ class _SlaPolicyCard extends StatelessWidget {
           success ? 'SLA policy updated.' : 'SLA policy update failed.',
         ),
       ),
+    );
+  }
+}
+
+class _SlaPolicyDialog extends StatefulWidget {
+  const _SlaPolicyDialog({required this.policy});
+
+  final PriorityReference policy;
+
+  @override
+  State<_SlaPolicyDialog> createState() => _SlaPolicyDialogState();
+}
+
+class _SlaPolicyDialogState extends State<_SlaPolicyDialog> {
+  late final TextEditingController _responseController;
+  late final TextEditingController _resolutionController;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _responseController = TextEditingController(
+      text: '${widget.policy.responseSlaHours ?? ''}',
+    );
+    _resolutionController = TextEditingController(
+      text: '${widget.policy.slaHours ?? ''}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _responseController.dispose();
+    _resolutionController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final response = int.tryParse(_responseController.text.trim());
+    final resolution = int.tryParse(_resolutionController.text.trim());
+    if (response == null || resolution == null) {
+      setState(() => _errorMessage = 'Enter valid SLA hours.');
+      return;
+    }
+    if (response <= 0 || resolution <= 0 || response > resolution) {
+      setState(
+        () => _errorMessage =
+            'Response SLA must be positive and cannot exceed resolution SLA.',
+      );
+      return;
+    }
+    Navigator.pop(context, (response, resolution));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.policy.name} SLA policy'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _responseController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Response hours'),
+            ),
+            TextField(
+              controller: _resolutionController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Resolution hours'),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

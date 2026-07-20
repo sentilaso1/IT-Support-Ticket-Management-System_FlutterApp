@@ -224,9 +224,27 @@ class AssignmentLocalDataSourceImpl implements IAssignmentLocalDataSource {
         );
         final respondedLate =
             responseDueAt != null && DateTime.parse(now).isAfter(responseDueAt);
+        if (respondedLate) {
+          final existingBreachEvents = await transaction.query(
+            AppDatabase.slaEventsTable,
+            columns: ['id'],
+            where: 'ticketId = ? AND eventType = ?',
+            whereArgs: [ticketId, 'ResponseBreached'],
+            limit: 1,
+          );
+          if (existingBreachEvents.isEmpty) {
+            await transaction.insert(AppDatabase.slaEventsTable, {
+              'ticketId': ticketId,
+              'eventType': 'ResponseBreached',
+              'newDueAt': ticketRows.first['responseDueAt'],
+              'createdByUserId': assignedByUserId,
+              'createdAt': now,
+            });
+          }
+        }
         await transaction.insert(AppDatabase.slaEventsTable, {
           'ticketId': ticketId,
-          'eventType': respondedLate ? 'ResponseBreached' : 'Responded',
+          'eventType': respondedLate ? 'RespondedLate' : 'Responded',
           'newDueAt': ticketRows.first['responseDueAt'],
           'reason': note,
           'createdByUserId': assignedByUserId,

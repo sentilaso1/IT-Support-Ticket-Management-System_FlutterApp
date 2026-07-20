@@ -22,6 +22,7 @@ class ReportLocalDataSourceImpl implements IReportLocalDataSource {
     await SlaPersistence.refreshBreaches(database);
     final rows = await database.rawQuery(
       '''
+      WITH clock(nowValue) AS (SELECT julianday(?))
       SELECT
         SUM(CASE WHEN LOWER(status) <> 'cancelled' THEN 1 ELSE 0 END)
           AS total_actionable,
@@ -36,7 +37,7 @@ class ReportLocalDataSourceImpl implements IReportLocalDataSource {
             (firstRespondedAt IS NOT NULL
               AND julianday(firstRespondedAt) > julianday(responseDueAt))
             OR (firstRespondedAt IS NULL
-              AND julianday('now') >= julianday(responseDueAt))
+              AND clock.nowValue >= julianday(responseDueAt))
           )
           THEN 1 ELSE 0 END) AS response_breached,
         SUM(CASE WHEN slaExceptionReason IS NULL
@@ -50,26 +51,27 @@ class ReportLocalDataSourceImpl implements IReportLocalDataSource {
             (slaCompletedAt IS NOT NULL
               AND julianday(slaCompletedAt) > julianday(resolutionDueAt))
             OR (slaCompletedAt IS NULL
-              AND julianday('now') >= julianday(resolutionDueAt))
+              AND clock.nowValue >= julianday(resolutionDueAt))
           )
           THEN 1 ELSE 0 END) AS resolution_breached,
         SUM(CASE WHEN slaCompletedAt IS NULL
           AND slaExceptionReason IS NULL
-          AND julianday('now') < julianday(resolutionDueAt)
-          AND julianday('now') >=
+          AND clock.nowValue < julianday(resolutionDueAt)
+          AND clock.nowValue >=
             julianday(createdAt) +
             ((julianday(resolutionDueAt) - julianday(createdAt)) * 0.75)
           THEN 1 ELSE 0 END) AS currently_at_risk,
         SUM(CASE WHEN slaCompletedAt IS NULL
           AND slaExceptionReason IS NULL
-          AND julianday('now') >= julianday(resolutionDueAt)
+          AND clock.nowValue >= julianday(resolutionDueAt)
           THEN 1 ELSE 0 END) AS currently_breached,
         SUM(CASE WHEN slaExceptionReason IS NOT NULL
           OR LOWER(status) = 'cancelled' THEN 1 ELSE 0 END) AS exempt
       FROM ${AppDatabase.ticketsTable}
+      CROSS JOIN clock
       WHERE DATE(createdAt) BETWEEN ? AND ?
       ''',
-      [startDate, endDate],
+      [DateTime.now().toIso8601String(), startDate, endDate],
     );
     return SlaSummaryReportDto.fromMap(rows.first);
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:it_ticket_support_management/core/database/reference_data_service.dart';
 import 'package:it_ticket_support_management/features/reports/application/services/i_report_service.dart';
 import 'package:it_ticket_support_management/features/reports/domain/entities/processing_time_report.dart';
 import 'package:it_ticket_support_management/features/reports/domain/entities/staff_performance_report.dart';
@@ -30,6 +32,25 @@ void main() {
     expect(viewModel.userReports, hasLength(2));
     expect(viewModel.errorMessage, isNull);
     expect(viewModel.slaSummary.currentlyBreached, 1);
+  });
+
+  test('exposes an SLA policy persistence failure', () async {
+    final viewModel = AdminDashboardViewModel(
+      reportService: _ReportServiceFake(),
+      referenceDataService: ReferenceDataService(
+        _SlaDatabaseFake(updateResult: 0),
+      ),
+    );
+
+    final success = await viewModel.updateSlaPolicy(
+      priorityId: 2,
+      responseHours: 8,
+      resolutionHours: 48,
+    );
+
+    expect(success, isFalse);
+    expect(viewModel.isLoading, isFalse);
+    expect(viewModel.errorMessage, contains('Priority was not found'));
   });
 
   testWidgets('renders detailed tables including the user report', (
@@ -83,6 +104,130 @@ void main() {
     expect(find.text('Ticket overview'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('saves an SLA policy without using disposed controllers', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 5000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final viewModel = AdminDashboardViewModel(
+      reportService: _ReportServiceFake(),
+      referenceDataService: ReferenceDataService(_SlaDatabaseFake()),
+    );
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: viewModel,
+        child: const MaterialApp(home: AdminDashboardPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Medium: 8h / 48h'));
+    await tester.pumpAndSettle();
+    expect(find.text('Medium SLA policy'), findsOneWidget);
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Medium SLA policy'), findsNothing);
+    expect(find.text('SLA policy updated.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('rejects non-numeric SLA policy values', (tester) async {
+    await _pumpDashboardWithSla(tester);
+    await tester.tap(find.text('Medium: 8h / 48h'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, 'not-a-number');
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    expect(find.text('Enter valid SLA hours.'), findsOneWidget);
+    expect(find.text('Medium SLA policy'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('rejects response SLA greater than resolution SLA', (
+    tester,
+  ) async {
+    await _pumpDashboardWithSla(tester);
+    await tester.tap(find.text('Medium: 8h / 48h'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '49');
+    await tester.enterText(find.byType(TextField).last, '48');
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Response SLA must be positive and cannot exceed resolution SLA.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Medium SLA policy'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cancels SLA policy dialog without controller exceptions', (
+    tester,
+  ) async {
+    await _pumpDashboardWithSla(tester);
+    await tester.tap(find.text('Medium: 8h / 48h'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Medium SLA policy'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+Future<void> _pumpDashboardWithSla(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(1400, 5000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  await tester.pumpWidget(
+    ChangeNotifierProvider.value(
+      value: AdminDashboardViewModel(
+        reportService: _ReportServiceFake(),
+        referenceDataService: ReferenceDataService(_SlaDatabaseFake()),
+      ),
+      child: const MaterialApp(home: AdminDashboardPage()),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+class _SlaDatabaseFake implements Database {
+  _SlaDatabaseFake({this.updateResult = 1});
+
+  final int updateResult;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #query) {
+      return Future<List<Map<String, Object?>>>.value([
+        {
+          'id': 2,
+          'name': 'Medium',
+          'level': 2,
+          'slaHours': 48,
+          'responseSlaHours': 8,
+        },
+      ]);
+    }
+    if (invocation.memberName == #update) {
+      return Future<int>.value(updateResult);
+    }
+    return super.noSuchMethod(invocation);
+  }
 }
 
 class _ReportServiceFake implements IReportService {
