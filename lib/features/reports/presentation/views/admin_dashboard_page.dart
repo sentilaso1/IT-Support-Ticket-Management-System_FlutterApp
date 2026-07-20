@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/database/reference_data_service.dart';
+import '../../../../core/enums/sla_status.dart';
 import '../../../../core/widgets/app_states.dart';
+import '../../../tickets/presentation/views/ticket_detail_page.dart';
+import '../../domain/entities/low_rating_feedback_report.dart';
 import '../../domain/entities/processing_time_report.dart';
+import '../../domain/entities/report_filter.dart';
+import '../../domain/entities/sla_attention_report.dart';
 import '../../domain/entities/staff_performance_report.dart';
 import '../../domain/entities/ticket_volume_report.dart';
 import '../../domain/entities/user_report.dart';
@@ -18,6 +23,7 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   late DateTimeRange _dateRange;
+  ReportFilter _filter = const ReportFilter();
 
   @override
   void initState() {
@@ -34,7 +40,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return context.read<AdminDashboardViewModel>().loadDashboardData(
       _databaseDate(_dateRange.start),
       _databaseDate(_dateRange.end),
+      filter: _filter,
     );
+  }
+
+  Future<void> _updateFilter(ReportFilter filter) async {
+    setState(() => _filter = filter);
+    await _loadReport();
   }
 
   Future<void> _selectDateRange() async {
@@ -104,6 +116,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               onSelectDateRange: _selectDateRange,
               onPresetSelected: _applyPreset,
             ),
+            const SizedBox(height: 12),
+            _ReportFilterCard(
+              filter: _filter,
+              priorities: viewModel.slaPolicies,
+              categories: viewModel.categories,
+              staff: viewModel.staff,
+              isLoading: viewModel.isLoading,
+              onChanged: _updateFilter,
+            ),
             if (viewModel.isLoading) ...[
               const SizedBox(height: 8),
               const LinearProgressIndicator(),
@@ -127,8 +148,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             const _SectionTitle(
               icon: Icons.timer_outlined,
               title: 'SLA performance',
-              subtitle:
-                  'Response and resolution compliance for the selected period',
+              subtitle: 'Compliance for tickets created in the selected period',
             ),
             const SizedBox(height: 12),
             _SlaSummaryCards(viewModel: viewModel),
@@ -136,6 +156,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               const SizedBox(height: 16),
               _SlaPolicyCard(viewModel: viewModel),
             ],
+            const SizedBox(height: 24),
+            _SectionTitle(
+              icon: Icons.crisis_alert_outlined,
+              title: 'SLA attention required',
+              subtitle:
+                  '${viewModel.slaAttention.length} active tickets need admin attention',
+            ),
+            const SizedBox(height: 12),
+            _SlaAttentionTable(reports: viewModel.slaAttention),
             const SizedBox(height: 24),
             const _SectionTitle(
               icon: Icons.calendar_view_week_outlined,
@@ -160,6 +189,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
             const SizedBox(height: 12),
             _ProcessingTimeTable(reports: viewModel.processingTimeReports),
+            const SizedBox(height: 24),
+            const _SectionTitle(
+              icon: Icons.reviews_outlined,
+              title: 'Feedback quality',
+              subtitle: 'Feedback for tickets closed in the selected period',
+            ),
+            const SizedBox(height: 12),
+            _FeedbackSummaryCards(viewModel: viewModel),
+            const SizedBox(height: 12),
+            _LowRatingFeedbackTable(reports: viewModel.lowRatingFeedback),
             const SizedBox(height: 24),
             _SectionTitle(
               icon: Icons.group_outlined,
@@ -377,6 +416,214 @@ class _DateFilterCard extends StatelessWidget {
                   onPressed: isLoading ? null : onSelectDateRange,
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportFilterCard extends StatelessWidget {
+  const _ReportFilterCard({
+    required this.filter,
+    required this.priorities,
+    required this.categories,
+    required this.staff,
+    required this.isLoading,
+    required this.onChanged,
+  });
+
+  final ReportFilter filter;
+  final List<PriorityReference> priorities;
+  final List<CategoryReference> categories;
+  final List<StaffReference> staff;
+  final bool isLoading;
+  final ValueChanged<ReportFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.filter_alt_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Report filters',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (!filter.isEmpty)
+                  TextButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () => onChanged(const ReportFilter()),
+                    icon: const Icon(Icons.clear_all, size: 18),
+                    label: const Text('Clear'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 920
+                    ? 4
+                    : constraints.maxWidth >= 520
+                    ? 2
+                    : 1;
+                const gap = 12.0;
+                final width =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        key: ValueKey('priority-${filter.priority}'),
+                        initialValue: filter.priority,
+                        decoration: const InputDecoration(
+                          labelText: 'Priority',
+                          prefixIcon: Icon(Icons.flag_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text(
+                              'All priorities',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          ...priorities.map(
+                            (item) => DropdownMenuItem(
+                              value: item.name,
+                              child: Text(
+                                item.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: isLoading
+                            ? null
+                            : (value) =>
+                                  onChanged(filter.copyWith(priority: value)),
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        key: ValueKey('category-${filter.categoryId}'),
+                        initialValue: filter.categoryId,
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                          prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text(
+                              'All categories',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          ...categories.map(
+                            (item) => DropdownMenuItem(
+                              value: item.id,
+                              child: Text(
+                                item.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: isLoading
+                            ? null
+                            : (value) =>
+                                  onChanged(filter.copyWith(categoryId: value)),
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        key: ValueKey('staff-${filter.staffId}'),
+                        initialValue: filter.staffId,
+                        decoration: const InputDecoration(
+                          labelText: 'Assigned staff',
+                          prefixIcon: Icon(Icons.engineering_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text(
+                              'All staff',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          ...staff.map(
+                            (item) => DropdownMenuItem(
+                              value: item.id,
+                              child: Text(
+                                item.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: isLoading
+                            ? null
+                            : (value) =>
+                                  onChanged(filter.copyWith(staffId: value)),
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: DropdownButtonFormField<SlaStatus?>(
+                        isExpanded: true,
+                        key: ValueKey('sla-${filter.slaStatus}'),
+                        initialValue: filter.slaStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Resolution SLA',
+                          prefixIcon: Icon(Icons.timer_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text(
+                              'All SLA states',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          ...SlaStatus.values.map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(
+                                status.label,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: isLoading
+                            ? null
+                            : (value) =>
+                                  onChanged(filter.copyWith(slaStatus: value)),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -765,6 +1012,208 @@ class _SlaPolicyDialogState extends State<_SlaPolicyDialog> {
   }
 }
 
+class _SlaAttentionTable extends StatelessWidget {
+  const _SlaAttentionTable({required this.reports});
+
+  final List<SlaAttentionReport> reports;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return _ReportTable(
+      emptyMessage: 'No active ticket is at risk or breached.',
+      isEmpty: reports.isEmpty,
+      columns: const [
+        DataColumn(label: Text('Ticket')),
+        DataColumn(label: Text('Priority')),
+        DataColumn(label: Text('Category')),
+        DataColumn(label: Text('Staff')),
+        DataColumn(label: Text('SLA')),
+        DataColumn(label: Text('Deadline')),
+        DataColumn(label: Text('Time')),
+      ],
+      rows: reports
+          .map((report) {
+            final remaining = report.remainingAt(now);
+            final breached = report.slaStatus == SlaStatus.breached;
+            return DataRow(
+              onSelectChanged: (_) => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TicketDetailPage(ticketId: report.ticketId),
+                ),
+              ),
+              cells: [
+                DataCell(
+                  SizedBox(
+                    width: 220,
+                    child: Text(
+                      '#${report.ticketId} ${report.title}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                DataCell(Text(report.priority)),
+                DataCell(Text(report.categoryName ?? '—')),
+                DataCell(Text(report.staffName ?? 'Unassigned')),
+                DataCell(
+                  _StatusLabel(
+                    label: report.slaStatus.label,
+                    color: breached ? Colors.red : Colors.orange,
+                  ),
+                ),
+                DataCell(Text(_displayDateTime(report.resolutionDueAt))),
+                DataCell(
+                  Text(
+                    breached
+                        ? '${_durationLabel(remaining.abs())} overdue'
+                        : '${_durationLabel(remaining)} left',
+                    style: TextStyle(
+                      color: breached ? Colors.red : Colors.orange.shade800,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+}
+
+class _FeedbackSummaryCards extends StatelessWidget {
+  const _FeedbackSummaryCards({required this.viewModel});
+
+  final AdminDashboardViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = viewModel.feedbackSummary;
+    final items = [
+      (
+        'Average rating',
+        '${summary.averageRating.toStringAsFixed(1)} / 5',
+        Icons.star_outline,
+        Colors.amber.shade800,
+      ),
+      (
+        'Feedback received',
+        '${summary.totalFeedback}',
+        Icons.rate_review_outlined,
+        Colors.blue,
+      ),
+      (
+        'Feedback rate',
+        '${(summary.feedbackRate * 100).toStringAsFixed(1)}%',
+        Icons.percent,
+        Colors.teal,
+      ),
+      (
+        'Low ratings',
+        '${summary.lowRatingCount}',
+        Icons.sentiment_dissatisfied_outlined,
+        Colors.red,
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 4 : 2;
+        const gap = 12.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: items
+              .map(
+                (item) => _MetricCard(
+                  width: width,
+                  label: item.$1,
+                  value: item.$2,
+                  icon: item.$3,
+                  color: item.$4,
+                ),
+              )
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+}
+
+class _LowRatingFeedbackTable extends StatelessWidget {
+  const _LowRatingFeedbackTable({required this.reports});
+
+  final List<LowRatingFeedbackReport> reports;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ReportTable(
+      emptyMessage:
+          'No one- or two-star feedback belongs to tickets closed in this period.',
+      isEmpty: reports.isEmpty,
+      columns: const [
+        DataColumn(label: Text('Ticket')),
+        DataColumn(label: Text('Requester')),
+        DataColumn(label: Text('Rating')),
+        DataColumn(label: Text('Comment')),
+        DataColumn(label: Text('Submitted')),
+      ],
+      rows: reports
+          .map((report) {
+            return DataRow(
+              onSelectChanged: (_) => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TicketDetailPage(ticketId: report.ticketId),
+                ),
+              ),
+              cells: [
+                DataCell(
+                  SizedBox(
+                    width: 220,
+                    child: Text(
+                      '#${report.ticketId} ${report.ticketTitle}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                DataCell(Text(report.userName)),
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star, size: 18, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text('${report.rating}'),
+                    ],
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: 280,
+                    child: Text(
+                      report.comment?.trim().isNotEmpty == true
+                          ? report.comment!
+                          : 'No comment',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                DataCell(Text(_displayDate(report.createdAt))),
+              ],
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+}
+
 class _TicketVolumeTable extends StatelessWidget {
   const _TicketVolumeTable({required this.reports});
 
@@ -1132,4 +1581,19 @@ String _displayDate(DateTime date) {
   return '${date.day.toString().padLeft(2, '0')}/'
       '${date.month.toString().padLeft(2, '0')}/'
       '${date.year}';
+}
+
+String _displayDateTime(DateTime date) {
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '${_displayDate(date)} $hour:$minute';
+}
+
+String _durationLabel(Duration duration) {
+  final days = duration.inDays;
+  final hours = duration.inHours.remainder(24);
+  final minutes = duration.inMinutes.remainder(60);
+  if (days > 0) return '${days}d ${hours}h';
+  if (duration.inHours > 0) return '${duration.inHours}h ${minutes}m';
+  return '${minutes.clamp(0, 59)}m';
 }

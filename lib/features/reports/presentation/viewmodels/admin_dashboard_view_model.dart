@@ -3,7 +3,11 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/database/reference_data_service.dart';
 
 import '../../application/services/i_report_service.dart';
+import '../../domain/entities/feedback_summary_report.dart';
+import '../../domain/entities/low_rating_feedback_report.dart';
 import '../../domain/entities/processing_time_report.dart';
+import '../../domain/entities/report_filter.dart';
+import '../../domain/entities/sla_attention_report.dart';
 import '../../domain/entities/staff_performance_report.dart';
 import '../../domain/entities/ticket_volume_report.dart';
 import '../../domain/entities/user_report.dart';
@@ -25,6 +29,21 @@ class AdminDashboardViewModel extends ChangeNotifier {
   List<ProcessingTimeReport> _processingTimeReports = const [];
   List<UserReport> _userReports = const [];
   List<PriorityReference> _slaPolicies = const [];
+  List<CategoryReference> _categories = const [];
+  List<StaffReference> _staff = const [];
+  List<SlaAttentionReport> _slaAttention = const [];
+  List<LowRatingFeedbackReport> _lowRatingFeedback = const [];
+  FeedbackSummaryReport _feedbackSummary = const FeedbackSummaryReport(
+    closedTickets: 0,
+    totalFeedback: 0,
+    averageRating: 0,
+    lowRatingCount: 0,
+    rating1Count: 0,
+    rating2Count: 0,
+    rating3Count: 0,
+    rating4Count: 0,
+    rating5Count: 0,
+  );
   SlaSummaryReport _slaSummary = const SlaSummaryReport(
     totalActionable: 0,
     responseMet: 0,
@@ -44,6 +63,11 @@ class AdminDashboardViewModel extends ChangeNotifier {
       _processingTimeReports;
   List<UserReport> get userReports => _userReports;
   List<PriorityReference> get slaPolicies => _slaPolicies;
+  List<CategoryReference> get categories => _categories;
+  List<StaffReference> get staff => _staff;
+  List<SlaAttentionReport> get slaAttention => _slaAttention;
+  List<LowRatingFeedbackReport> get lowRatingFeedback => _lowRatingFeedback;
+  FeedbackSummaryReport get feedbackSummary => _feedbackSummary;
   SlaSummaryReport get slaSummary => _slaSummary;
 
   int totalTicketsOverall = 0;
@@ -65,18 +89,41 @@ class AdminDashboardViewModel extends ChangeNotifier {
     return (totalResolvedOverall + totalClosedOverall) / actionableTickets;
   }
 
-  Future<void> loadDashboardData(String startDate, String endDate) async {
+  Future<void> loadDashboardData(
+    String startDate,
+    String endDate, {
+    ReportFilter filter = const ReportFilter(),
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       final results = await Future.wait([
-        reportService.getTicketVolumeReport(startDate, endDate),
-        reportService.getStaffPerformanceReport(startDate, endDate),
-        reportService.getProcessingTimeReport(startDate, endDate),
-        reportService.getUserReport(startDate, endDate),
-        reportService.getSlaSummaryReport(startDate, endDate),
+        reportService.getTicketVolumeReport(startDate, endDate, filter: filter),
+        reportService.getStaffPerformanceReport(
+          startDate,
+          endDate,
+          filter: filter,
+        ),
+        reportService.getProcessingTimeReport(
+          startDate,
+          endDate,
+          filter: filter,
+        ),
+        reportService.getUserReport(startDate, endDate, filter: filter),
+        reportService.getSlaSummaryReport(startDate, endDate, filter: filter),
+        reportService.getSlaAttentionReport(filter: filter),
+        reportService.getFeedbackSummaryReport(
+          startDate,
+          endDate,
+          filter: filter,
+        ),
+        reportService.getLowRatingFeedbackReport(
+          startDate,
+          endDate,
+          filter: filter,
+        ),
       ]);
 
       _volumeReports = results[0] as List<TicketVolumeReport>;
@@ -84,9 +131,19 @@ class AdminDashboardViewModel extends ChangeNotifier {
       _processingTimeReports = results[2] as List<ProcessingTimeReport>;
       _userReports = results[3] as List<UserReport>;
       _slaSummary = results[4] as SlaSummaryReport;
+      _slaAttention = results[5] as List<SlaAttentionReport>;
+      _feedbackSummary = results[6] as FeedbackSummaryReport;
+      _lowRatingFeedback = results[7] as List<LowRatingFeedbackReport>;
       final references = referenceDataService;
       if (references != null) {
-        _slaPolicies = await references.getActivePriorities();
+        final options = await Future.wait([
+          references.getActivePriorities(),
+          references.getActiveCategories(),
+          references.getActiveStaff(),
+        ]);
+        _slaPolicies = options[0] as List<PriorityReference>;
+        _categories = options[1] as List<CategoryReference>;
+        _staff = options[2] as List<StaffReference>;
       }
       _calculateTotals();
     } catch (error) {
