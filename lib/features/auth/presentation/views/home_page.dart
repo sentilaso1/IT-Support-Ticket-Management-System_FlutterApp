@@ -11,6 +11,8 @@ import '../../../assignment/presentation/views/admin_ticket_assignment_page.dart
 import '../../../assignment/presentation/views/staff_submitted_tickets_page.dart';
 import '../../../assignment/presentation/views/technician_queue_page.dart';
 import '../../../categories/presentation/views/category_management_page.dart';
+import '../../../departments/presentation/viewmodels/department_view_model.dart';
+import '../../../departments/presentation/views/department_management_page.dart';
 import '../../../reports/presentation/views/admin_dashboard_page.dart';
 import '../../../tickets/presentation/views/ticket_list_page.dart';
 import '../../../user_management/presentation/views/user_list_page.dart';
@@ -56,6 +58,20 @@ class HomePage extends StatelessWidget {
         builder: (_) => ChangeNotifierProvider.value(
           value: categoryVm,
           child: const CategoryManagementPage(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDepartments(BuildContext context) async {
+    final departmentVm = await ServiceLocator.departmentViewModel;
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider<DepartmentViewModel>.value(
+          value: departmentVm,
+          child: const DepartmentManagementPage(),
         ),
       ),
     );
@@ -173,6 +189,12 @@ class HomePage extends StatelessWidget {
           subtitle: 'Maintain ticket classification options',
           icon: Icons.category_outlined,
           onTap: () => _openCategories(context),
+        ),
+        _HomeAction(
+          title: 'Departments',
+          subtitle: 'Manage organizational routing and staff groups',
+          icon: Icons.corporate_fare_outlined,
+          onTap: () => _openDepartments(context),
         ),
       ];
     }

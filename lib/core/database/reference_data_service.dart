@@ -16,6 +16,31 @@ class DepartmentReference {
   }
 }
 
+class CategoryReference {
+  const CategoryReference({required this.id, required this.name});
+
+  final int id;
+  final String name;
+
+  factory CategoryReference.fromMap(Map<String, Object?> map) {
+    return CategoryReference(id: map['id'] as int, name: map['name'] as String);
+  }
+}
+
+class StaffReference {
+  const StaffReference({required this.id, required this.name});
+
+  final int id;
+  final String name;
+
+  factory StaffReference.fromMap(Map<String, Object?> map) {
+    return StaffReference(
+      id: map['id'] as int,
+      name: map['fullName'] as String,
+    );
+  }
+}
+
 class PriorityReference {
   const PriorityReference({
     required this.id,
@@ -65,6 +90,26 @@ class ReferenceDataService {
       orderBy: 'level ASC',
     );
     return rows.map(PriorityReference.fromMap).toList(growable: false);
+  }
+
+  Future<List<CategoryReference>> getActiveCategories() async {
+    final rows = await _database.query(
+      AppDatabase.categoriesTable,
+      columns: ['id', 'name'],
+      where: 'isActive = 1',
+      orderBy: 'name ASC',
+    );
+    return rows.map(CategoryReference.fromMap).toList(growable: false);
+  }
+
+  Future<List<StaffReference>> getActiveStaff() async {
+    final rows = await _database.query(
+      AppDatabase.usersTable,
+      columns: ['id', 'fullName'],
+      where: "LOWER(role) = 'staff' AND isActive = 1",
+      orderBy: 'fullName ASC',
+    );
+    return rows.map(StaffReference.fromMap).toList(growable: false);
   }
 
   Future<void> updatePrioritySla({
